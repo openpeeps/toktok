@@ -69,7 +69,7 @@ Here you can find some cool projects based on Toktok Lexer
 
 | | | |
 | ---- | ---- | ---- |
-| <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="115px">   | <img src="https://raw.githubusercontent.com/psypac/psypac/main/.github/psypac.png" width="115px">   | <img src="https://raw.githubusercontent.com/openpeep/parrot/main/.github/parrot-logo.png" width="115px"> |
+| <a href="https://github.com/openpeep/tim"><img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="115px"></a> | <a href="https://github.com/psypac/psypac"><img src="https://raw.githubusercontent.com/psypac/psypac/main/.github/psypac.png" width="115px"></a> | <a href="https://github.com/openpeep/parrot"><img src="https://raw.githubusercontent.com/openpeep/parrot/main/.github/parrot-logo.png" width="115px"></a> |
 
 _Your Toktok project here_
 
