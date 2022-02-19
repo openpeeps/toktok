@@ -56,6 +56,25 @@ proc hasLetters[T: Lexer](lex: var T, pos: int): bool =
 proc hasNumbers[T: Lexer](lex: var T, pos: int): bool =
     lex.existsInBuffer(pos, NUMBERS)
 
+template handleNumber*[T: Lexer](lex: var T) =
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    lex.token = "0"
+    while lex.buf[lex.bufpos] == '0':
+        inc lex.bufpos
+    while true:
+        case lex.buf[lex.bufpos]
+        of '0'..'9':
+            if lex.token == "0":
+                setLen(lex.token, 0)
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+        of 'a'..'z', 'A'..'Z', '_':
+            lex.setError("Invalid number")
+            return
+        else:
+            lex.setToken(TK_INTEGER)
+            break
+
 template handleIdent*[T: Lexer](lex: var T) =
     ## Template to handle string-based identifiers
     lex.startPos = lex.getColNumber(lex.bufpos)

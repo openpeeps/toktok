@@ -20,6 +20,7 @@ let
     tkUnknown {.compileTime.} = newLit("TK_UNKNOWN")
     tkIdentifier {.compileTime.} = newLit("TK_IDENTIFIER")
     tkEOF {.compileTime.} = newLit("TK_EOF")
+    tkInt {.compileTime.} = newLit("Tk_Integer")
 
 var 
     prefIncludeWhitespaces {.compileTime.} = false
@@ -51,11 +52,13 @@ macro tokens*(tks: untyped) =
     # var caseTokens = newNimNode(nnkCaseStmt)
     var caseStrTokens: seq[tuple[strToken: string, tokToken: string]]
     var caseCharTokens: seq[tuple[charToken: char, tokToken: string]]
+    # var caseRangeTokens: seq[tuple[charStart: char, charEnd: char, tokToken: string]]
     enumTokensNode.add(newEmptyNode())
     
     # add TK_UNKNOWN at the begining of TokenKind enum
     var tkIdent = newIdentNode(toUpperAscii(tkUnknown.strVal))
     enumTokensNode.add(tkIdent)
+    enumTokensNode.add(newIdentNode(toUpperAscii(tkInt.strVal)))
     
     for tk in tks:
         # tk.expectKind(nnkIdent)
@@ -72,27 +75,24 @@ macro tokens*(tks: untyped) =
                 caseStrTokens.add((strToken: tk[2].strVal, tokToken: tk[1].strVal))
             elif tk[2].kind == nnkInfix:
                 let infixStr = tk[2][0].strVal
-                if tk[2][0].strVal == "..":
+                # if tk[2][0].strVal == "..":
                     # handle char ranges like '0'..'9' or
                     # variations like 'a'..'z' & 'A'..'Z'
-                    var leftTk = tk[2][1]
-                    var rightTk = tk[2][2]
-                    if leftTk.kind == nnkCharLit and rightTk.kind == nnkCharLit:
-                        let leftTkChar = char(leftTk.intVal)
-                        let rightTkChar = char(rightTk.intVal)
-                        if prefPromptTokens == true:
-                            let keyword = $(leftTkChar & infixStr & rightTkChar)
-                            echo "\n  Token:", indent(tk[1].strVal, 7), "\n  Keyword:", indent(keyword, 5)
-                    else:
-                        discard
+                    # var leftTk = tk[2][1]
+                    # var rightTk = tk[2][2]
+                    # if leftTk.kind == nnkCharLit and rightTk.kind == nnkCharLit:
+                    #     let leftTkChar = char(leftTk.intVal)
+                    #     let rightTkChar = char(rightTk.intVal)
+                    #     caseRangeTokens.add(charStart: leftTkChar, charEnd: rightTkChar, tokToken: tk[1].strVal)
+                    #     if prefPromptTokens == true:
+                    #         let keyword = $(leftTkChar & infixStr & rightTkChar)
+                    #         echo "\n  Token:", indent(tk[1].strVal, 7), "\n  Keyword:", indent(keyword, 5)
+                    # else:
+                    #     discard
                         # echo leftTk.kind
                         # echo rightTk.kind
-            else:
-                # Collect all char-based cases
-                # echo tk[2].kind
+            else: # Collect all char-based cases
                 caseCharTokens.add((charToken: char(tk[2].intval), tokToken: tk[1].strVal))
-                # caseCharTokens.add(char(tk[2].intVal))
-                discard
         else: discard   # TODO raise error
 
     # add TK_EOF at the end
@@ -340,8 +340,8 @@ macro tokens*(tks: untyped) =
                 newLit(caseChar.charToken),
                 newNimNode(nnkCall).add(
                     newNimNode(nnkDotExpr).add(
-                        newIdentNode("lex"),
-                        newIdentNode("setToken")
+                        newIdentNode("lex"),            # TODO, replace string with compileTime var
+                        newIdentNode("setToken")        # TODO, replace string with compileTime var
                     ),
                     newIdentNode(tokTokenStr),
                     newLit(1)                           # char token offset in lex.bufpos
@@ -349,8 +349,28 @@ macro tokens*(tks: untyped) =
             )
         )
 
-    # Push a-z-A-Z range to Main Case Statement
-    # This case is handled by handleIdent
+    # Define case for integers (0..9)
+    # and use handleNumber() template from lexutils
+    mainCaseStatements.add(
+        newNimNode(nnkOfBranch).add(
+            newNimNode(nnkInfix).add(
+                newIdentNode(".."),
+                newLit('0'),
+                newLit('9')
+            ),
+            newNimNode(nnkStmtList).add(
+                newNimNode(nnkCall).add(
+                    newNimNode(nnkDotExpr).add(
+                        newIdentNode("lex"),                # TODO, replace string with compileTime var
+                        newIdentNode("handleNumber")        # TODO, replace string with compileTime var
+                    )
+                )
+            )
+        )
+    )
+
+    # Define case for a-z-A-Z 
+    # and use handleIdent() template from lexutils
     mainCaseStatements.add(
         newNimNode(nnkOfBranch).add(
             newNimNode(nnkInfix).add(
@@ -363,13 +383,11 @@ macro tokens*(tks: untyped) =
                 newLit('A'),
                 newLit('Z')
             ),
-            # newLit('_'),
-            # newLit('-'),
             newNimNode(nnkStmtList).add(
                 newNimNode(nnkCall).add(
                     newNimNode(nnkDotExpr).add(
-                        newIdentNode("lex"),
-                        newIdentNode("handleIdent")
+                        newIdentNode("lex"),            # TODO, replace string with compileTime var
+                        newIdentNode("handleIdent")     # TODO, replace string with compileTime var
                     )
                 )
             )
@@ -384,7 +402,7 @@ macro tokens*(tks: untyped) =
                         newIdentNode("lex"),
                         newIdentNode("kind")
                     ),
-                    newIdentNode("TK_IDENTIFIER")
+                    newIdentNode("TK_IDENTIFIER")       # TODO, replace string with compileTime var
                 )
             )
         )
@@ -446,6 +464,7 @@ macro tokens*(tks: untyped) =
                 # for char, string and int-based tokens
                 mainCaseStatements,
                 
+                # TODO, create nnkAsgn dynamically
                 nnkAsgn.newTree(
                     newIdentNode("result"),
                     nnkTupleConstr.newTree(
