@@ -42,6 +42,7 @@ tokens:
     Minus     > '-'
     Multi     > '*'
     Div       > '/'
+    Assign    > '='
     Var       > "var"
     Let       > "let"
     Const     > "const"
@@ -61,17 +62,21 @@ when isMainModule:
     <summary>See output</summary>
 
 ```nim
-(kind: TK_CONST, value: "const", wsno: 0, col: 0, line: 1)
-(kind: TK_IDENTIFIER, value: "hello", wsno: 0, col: 0, line: 1)
-(kind: TK_INTEGER, value: "1", wsno: 0, col: 0, line: 1)
-(kind: TK_PLUS, value: "+", wsno: 0, col: 0, line: 1)
-(kind: TK_INTEGER, value: "1", wsno: 0, col: 0, line: 1)
+(kind: TK_CONST, value: "const", wsno: 1, col: 0, line: 1)
+(kind: TK_IDENTIFIER, value: "hello", wsno: 1, col: 6, line: 1)
+(kind: TK_ASSIGN, value: "", wsno: 0, col: 12, line: 1)
+(kind: TK_INTEGER, value: "1", wsno: 1, col: 15, line: 1)
+(kind: TK_PLUS, value: "", wsno: 0, col: 16, line: 1)
+(kind: TK_INTEGER, value: "1", wsno: 1, col: 19, line: 1)
 ```
 
 </details>
 
 ### Tips
-Toktok can handle integers for `'0'..'9'` and identifiers for `'a'..'z', 'A'..'Z'`
+Toktok is automatically handling integers `'0'..'9'` and identifiers `'a'..'z', 'A'..'Z'`.
+
+Toktok is creating a `TokenKind` enumeration for all given tokens. Note that, by default all tokens are transformed to `uppercase` and prefixed with `TK_`.
+You can change that from `toktokSettings`.
 
 
 ## Based on Toktok
