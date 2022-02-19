@@ -66,18 +66,9 @@ when isMainModule:
 ## Based on Toktok
 Here you can find some cool projects based on Toktok Lexer
 
-### Tim Engine
-⚡️ High-performance, compiled template engine inspired by Emmet syntax. <kbd>Nim</kbd>
-
-### Parrot
-State of the Art 👌 JSON Content Rules Language, Validator and Generator. <kbd>Nim</kbd>
-
-### Psydoc  
-Used internally by Psypac for genrating API documentation for PHP projects. <kbd>Nim</kbd>
-What's Psypac 🌀 A fast, multi-threading and disk space efficient Package Manager for PHP development & production environments
-
-### Nyml
-😋 A stupid simple YAML-like implementation in Nim language. From YML to JsonNode <kbd>Nim</kbd>
+| | | |
+| ---- | ---- | ---- |
+| <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="115px">   | <img src="https://raw.githubusercontent.com/psypac/psypac/main/.github/psypac.png" width="115px">   | <img src="https://raw.githubusercontent.com/openpeep/parrot/main/.github/parrot-logo.png" width="115px"> |
 
 _Your Toktok project here_
 
