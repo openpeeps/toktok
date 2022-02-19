@@ -7,9 +7,10 @@ export lexbase, streams
 # {.experimental: "caseStmtMacros".}
 
 let
-    lexer_object_ident {.compileTime.} = newLit("Lexer")
-    lexer_param_ident {.compileTime.} = newLit("lex")
-    lexer_exception_ident {.compileTime.} = newLit("LexerException")
+    lexer_object_ident {.compileTime.} = "Lexer"
+    lexer_object_inherit {.compileTime.} = "BaseLexer"
+    lexer_param_ident {.compileTime.} = "lex"
+    lexer_exception_ident {.compileTime.} = "LexerException"
 
     template_hasError_ident {.compileTime.} = newLit("hasError")
     proc_getError_ident {.compileTime.} = newLit("getError")
@@ -56,6 +57,7 @@ macro tokens*(tks: untyped) =
     enumTokensNode.add(newEmptyNode())
     
     # add TK_UNKNOWN at the begining of TokenKind enum
+    # add TK_INTEGER as second
     var tkIdent = newIdentNode(toUpperAscii(tkUnknown.strVal))
     enumTokensNode.add(tkIdent)
     enumTokensNode.add(newIdentNode(toUpperAscii(tkInt.strVal)))
@@ -123,7 +125,7 @@ macro tokens*(tks: untyped) =
             newNimNode(nnkTypeDef).add(
                 newNimNode(nnkPostfix).add(
                     newIdentNode("*"),
-                    newIdentNode(lexer_exception_ident.strVal)
+                    newIdentNode(lexer_exception_ident)
                 ),
                 newEmptyNode(),
                 newNimNode(nnkObjectTy).add(
@@ -192,12 +194,12 @@ macro tokens*(tks: untyped) =
             newNimNode(nnkTypeDef).add(
                 newNimNode(nnkPostfix).add(
                     newIdentNode("*"),
-                    newIdentNode(lexer_object_ident.strVal)
+                    newIdentNode(lexer_object_ident)
                 ),
                 newEmptyNode(),
                 newNimNode(nnkObjectTy).add(
                     newEmptyNode(),
-                    newNimNode(nnkOfInherit).add(newIdentNode("BaseLexer")),
+                    newNimNode(nnkOfInherit).add(newIdentNode(lexer_object_inherit)),
                     objectFields
                 )
             )
@@ -220,11 +222,11 @@ macro tokens*(tks: untyped) =
     mainCaseStatements.add(
         nnkBracketExpr.newTree(
             nnkDotExpr.newTree(
-                newIdentNode("lex"),
+                newIdentNode(lexer_param_ident),
                 newIdentNode("buf")
             ),
             nnkDotExpr.newTree(
-                newIdentNode("lex"),
+                newIdentNode(lexer_param_ident),
                 newIdentNode("bufpos")
             )
         )
@@ -239,23 +241,23 @@ macro tokens*(tks: untyped) =
             nnkStmtList.newTree(
                 nnkAsgn.newTree(
                     nnkDotExpr.newTree(
-                        newIdentNode("lex"),
+                        newIdentNode(lexer_param_ident),
                         newIdentNode("startPos")
                     ),
                     nnkCall.newTree(
                         nnkDotExpr.newTree(
-                            newIdentNode("lex"),
+                            newIdentNode(lexer_param_ident),
                             newIdentNode("getColNumber")
                         ),
                         nnkDotExpr.newTree(
-                            newIdentNode("lex"),
+                            newIdentNode(lexer_param_ident),
                             newIdentNode("bufpos")
                         )
                     )
                 ),
                 nnkAsgn.newTree(
                     nnkDotExpr.newTree(
-                        newIdentNode("lex"),
+                        newIdentNode(lexer_param_ident),
                         newIdentNode("kind")
                     ),
                     newIdentNode("TK_EOF")
@@ -269,7 +271,7 @@ macro tokens*(tks: untyped) =
     var strBasedCaseStatement = newNimNode(nnkCaseStmt)
     strBasedCaseStatement.add(
         newNimNode(nnkDotExpr).add(
-            newIdentNode("lex"),
+            newIdentNode(lexer_param_ident),
             newIdentNode("token")
         )
     )
@@ -308,7 +310,7 @@ macro tokens*(tks: untyped) =
         newNimNode(nnkFormalParams).add(
             newEmptyNode(),
             newNimNode(nnkIdentDefs).add(
-                newIdentNode("lex"),
+                newIdentNode(lexer_param_ident),
                 newNimNode(nnkVarTy).add(
                     newIdentNode("L")
                 ),
@@ -320,7 +322,7 @@ macro tokens*(tks: untyped) =
         newNimNode(nnkStmtList).add(
             newNimNode(nnkAsgn).add(
                 newNimNode(nnkDotExpr).add(
-                    newIdentNode("lex"),
+                    newIdentNode(lexer_param_ident),
                     newIdentNode("kind")
                 ),
                 strBasedCaseStatement
@@ -340,7 +342,7 @@ macro tokens*(tks: untyped) =
                 newLit(caseChar.charToken),
                 newNimNode(nnkCall).add(
                     newNimNode(nnkDotExpr).add(
-                        newIdentNode("lex"),            # TODO, replace string with compileTime var
+                        newIdentNode(lexer_param_ident),            # TODO, replace string with compileTime var
                         newIdentNode("setToken")        # TODO, replace string with compileTime var
                     ),
                     newIdentNode(tokTokenStr),
@@ -361,7 +363,7 @@ macro tokens*(tks: untyped) =
             newNimNode(nnkStmtList).add(
                 newNimNode(nnkCall).add(
                     newNimNode(nnkDotExpr).add(
-                        newIdentNode("lex"),                # TODO, replace string with compileTime var
+                        newIdentNode(lexer_param_ident),                # TODO, replace string with compileTime var
                         newIdentNode("handleNumber")        # TODO, replace string with compileTime var
                     )
                 )
@@ -386,7 +388,7 @@ macro tokens*(tks: untyped) =
             newNimNode(nnkStmtList).add(
                 newNimNode(nnkCall).add(
                     newNimNode(nnkDotExpr).add(
-                        newIdentNode("lex"),            # TODO, replace string with compileTime var
+                        newIdentNode(lexer_param_ident),            # TODO, replace string with compileTime var
                         newIdentNode("handleIdent")     # TODO, replace string with compileTime var
                     )
                 )
@@ -399,7 +401,7 @@ macro tokens*(tks: untyped) =
             nnkStmtList.newTree(
                 nnkAsgn.newTree(
                     nnkDotExpr.newTree(
-                        newIdentNode("lex"),
+                        newIdentNode(lexer_param_ident),
                         newIdentNode("kind")
                     ),
                     newIdentNode("TK_IDENTIFIER")       # TODO, replace string with compileTime var
@@ -428,7 +430,7 @@ macro tokens*(tks: untyped) =
             nnkFormalParams.newTree(
                 newIdentNode(token_tuple_ident.strVal),
                 nnkIdentDefs.newTree(
-                    newIdentNode("lex"),
+                    newIdentNode(lexer_param_ident),
                     nnkVarTy.newTree(
                         newIdentNode("T")
                     ),
@@ -441,7 +443,7 @@ macro tokens*(tks: untyped) =
                 # lex.startPos = lex.getColNumber(lex.bufpos)
                 nnkAsgn.newTree(
                     nnkDotExpr.newTree(
-                        newIdentNode("lex"),
+                        newIdentNode(lexer_param_ident),
                         newIdentNode("kind")
                     ),
                     newIdentNode("TK_UNKNOWN")
@@ -450,14 +452,14 @@ macro tokens*(tks: untyped) =
                 nnkCall.newTree(
                     newIdentNode("setLen"),
                     nnkDotExpr.newTree(
-                        newIdentNode("lex"),
+                        newIdentNode(lexer_param_ident),
                         newIdentNode("token")
                     ),
                     newLit(0)
                 ),
                 nnkCommand.newTree(
                     newIdentNode("skip"),
-                    newIdentNode("lex")
+                    newIdentNode(lexer_param_ident)
                 ),
 
                 # Unpack collected case statements
@@ -471,35 +473,35 @@ macro tokens*(tks: untyped) =
                         nnkExprColonExpr.newTree(
                             newIdentNode("kind"),
                             nnkDotExpr.newTree(
-                                newIdentNode("lex"),
+                                newIdentNode(lexer_param_ident),
                                 newIdentNode("kind")
                             )
                         ),
                         nnkExprColonExpr.newTree(
                             newIdentNode("value"),
                             nnkDotExpr.newTree(
-                                newIdentNode("lex"),
+                                newIdentNode(lexer_param_ident),
                                 newIdentNode("token")
                             )
                         ),
                         nnkExprColonExpr.newTree(
                             newIdentNode("wsno"),
                             nnkDotExpr.newTree(
-                                newIdentNode("lex"),
+                                newIdentNode(lexer_param_ident),
                                 newIdentNode("wsno")
                             )
                         ),
                         nnkExprColonExpr.newTree(
                             newIdentNode("col"),
                             nnkDotExpr.newTree(
-                                newIdentNode("lex"),
+                                newIdentNode(lexer_param_ident),
                                 newIdentNode("startPos")
                             )
                         ),
                         nnkExprColonExpr.newTree(
                             newIdentNode("line"),
                             nnkDotExpr.newTree(
-                                newIdentNode("lex"),
+                                newIdentNode(lexer_param_ident),
                                 newIdentNode("lineNumber")
                             )
                         )
