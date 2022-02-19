@@ -16,6 +16,13 @@ nimble install toktok
 
 ## Quick Example
 
+<details>
+    <summary>Show sample.txt example</summary>
+```
+const hello = 1 + 1
+```
+</details>
+
 ```nim
 import toktok
 
@@ -26,6 +33,9 @@ tokens:
     Div       > '/'
     Integer   > '0'..'9'
     String    > 'a'..'z' & 'A'..'Z'
+    Var       > "var"
+    Let       > "let"
+    Const     > "const"
 
 when isMainModule:
     var lex = Lexer.init(fileContents = readFile("sample.txt"))
@@ -33,10 +43,23 @@ when isMainModule:
         echo lex.getError
     else:
         while true:
-            var curr = lex.getToken()
+            var curr = lex.getToken()           # tuple[kind: TokenKind, value: string, wsno, col, line: int]
             if curr.kind == TK_EOF: break
             echo curr
 ```
+
+<details>
+    <summary>See output</summary>
+
+```nim
+(kind: TK_CONST, value: "const", wsno: 0, col: 0, line: 1)
+(kind: TK_IDENTIFIER, value: "hello", wsno: 0, col: 0, line: 1)
+(kind: TK_INTEGER, value: "1", wsno: 0, col: 0, line: 1)
+(kind: TK_PLUS, value: "+", wsno: 0, col: 0, line: 1)
+(kind: TK_INTEGER, value: "1", wsno: 0, col: 0, line: 1)
+```
+
+</details>
 
 ## Based on Toktok
 Here you can find some cool projects based on Toktok Lexer
