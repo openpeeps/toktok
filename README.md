@@ -29,13 +29,19 @@ const hello = 1 + 1
 ```nim
 import toktok
 
+# this is optional
+toktokSettings(
+    includeWhitespaces = false,         # if set true, each whitespace is tokenized as TK_WS
+    promptTokens = true,                # list all tokens on compile time
+    uppercaseTokens = true,             # transform tokens to uppercase, for example `Plus` > `TK_PLUS`
+    prefixTokens = "TK_"                # set a prefix for all tokens (default `TK_`)
+)
+
 tokens:
     Plus      > '+'
     Minus     > '-'
     Multi     > '*'
     Div       > '/'
-    Integer   > '0'..'9'
-    String    > 'a'..'z' & 'A'..'Z'
     Var       > "var"
     Let       > "let"
     Const     > "const"
@@ -63,6 +69,10 @@ when isMainModule:
 ```
 
 </details>
+
+### Tips
+Toktok can handle integers for `'0'..'9'` and identifiers for `'a'..'z', 'A'..'Z'`
+
 
 ## Based on Toktok
 Here you can find some cool projects based on Toktok Lexer
