@@ -1,6 +1,6 @@
 <p align="center">
     <img src=".github/logo.png" width="140px"><br>
-    Generic tokenizer written in Nim language, powered by Nim's Macros 👑
+    Generic tokenizer written in Nim language, powered by Nim's Macros 👑 (WIP)
 </p>
 
 ## 😍 Key Features
