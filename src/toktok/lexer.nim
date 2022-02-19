@@ -104,7 +104,7 @@ macro tokens*(tks: untyped) =
     tkIdent = newIdentNode(toUpperAscii(tkIdentifier.strVal))
     enumTokensNode.add(tkIdent)
 
-    # TokenKind enum
+    # Creates a public `TokenKind* = enum` with all given tokens
     result.add(
         newNimNode(nnkTypeSection).add(
             newNimNode(nnkTypeDef).add(

@@ -6,9 +6,15 @@
 ## 😍 Key Features
 - [x] Support `char`, `string`, `int` based tokens
 - [x] Powered by Nim's Macro
+- [x] Meta-programming `TokenKind*` `enum`
+- [x] Meta-programming `case` statement for all tokens
+- [x] `getToken()` procedure to retrieve token by token
 - [ ] Multi `TokenKind` handler in one line (`=`, `==`, `!==`)
 - [ ] Available as a Native NodeJS addon (soon)
 - [x] Open Source | `MIT`
+
+Toktok is a generic Lexer, based on standard Nim libraries `streams`, `lexbase` and `macros`.
+It is meant to be used by higher level parsers for writing any kind of tools or programs.
 
 ## Installing
 ```bash
@@ -92,6 +98,7 @@ _Your Toktok project here_
 
 #### 0.1.0
 - [ ] Add tests
+- [ ] Toktok as Native NodeJS addon
 
 ### 0.2.0
 _todo_
