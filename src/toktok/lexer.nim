@@ -331,6 +331,24 @@ macro tokens*(tks: untyped) =
     # create template generateIdentCase*() =
     result.add(identCaseTemplate)
 
+    # Add to Main Case Statement char-based tokens
+    for caseChar in caseCharTokens:
+        let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseChar.tokToken)
+        # echo tokTokenStr
+        mainCaseStatements.add(
+            newNimNode(nnkOfBranch).add(
+                newLit(caseChar.charToken),
+                newNimNode(nnkCall).add(
+                    newNimNode(nnkDotExpr).add(
+                        newIdentNode("lex"),
+                        newIdentNode("setToken")
+                    ),
+                    newIdentNode(tokTokenStr),
+                    newLit(1)                           # char token offset in lex.bufpos
+                )
+            )
+        )
+
     # Push a-z-A-Z range to Main Case Statement
     # This case is handled by handleIdent
     mainCaseStatements.add(
@@ -357,24 +375,6 @@ macro tokens*(tks: untyped) =
             )
         )
     )
-
-    # Add to Main Case Statement char-based tokens
-    for caseChar in caseCharTokens:
-        let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseChar.tokToken)
-        # echo tokTokenStr
-        mainCaseStatements.add(
-            newNimNode(nnkOfBranch).add(
-                newLit(caseChar.charToken),
-                newNimNode(nnkCall).add(
-                    newNimNode(nnkDotExpr).add(
-                        newIdentNode("lex"),
-                        newIdentNode("setToken")
-                    ),
-                    newIdentNode(tokTokenStr),
-                    newLit(1)                           # char token offset in lex.bufpos
-                )
-            )
-        )
 
     mainCaseStatements.add(
         newNimNode(nnkElse).add(
