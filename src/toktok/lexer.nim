@@ -6,8 +6,6 @@ export lexbase, streams
 
 # {.experimental: "caseStmtMacros".}
 
-var prefShowOutput {.compileTime.} = newIdentNode("false")
-
 let
     lexer_object_ident {.compileTime.} = newLit("Lexer")
     lexer_param_ident {.compileTime.} = newLit("lex")
@@ -20,14 +18,32 @@ let
     token_tuple_ident {.compileTime.} = newLit("TokenTuple")
     tkPrefix {.compileTime.} = newLit("tk_")
     tkUnknown {.compileTime.} = newLit("TK_UNKNOWN")
+    tkIdentifier {.compileTime.} = newLit("TK_IDENTIFIER")
     tkEOF {.compileTime.} = newLit("TK_EOF")
+
+var 
+    prefIncludeWhitespaces {.compileTime.} = false
+    prefPromptTokens {.compileTime.} = false
+    prefPrefixTokens {.compileTime.} = "TK_"
+    prefUppercaseTokens {.compileTime.} = true
+
+macro toktokSettings*(
+    includeWhitespaces, promptTokens, uppercaseTokens: static bool,
+    prefixTokens: static string) =
+    # whether to list tokens on compile time via cli
+    prefPromptTokens = promptTokens
+    # tokenize whitespaces or count as integer
+    prefIncludeWhitespaces = includeWhitespaces
+    # add a prefix 
+    prefPrefixTokens = prefixTokens
+    # transform tokens to uppercaseAscii
+    prefUppercaseTokens = uppercaseTokens
 
 macro tokens*(tks: untyped) =
     ## Generate TokenKind enumeration based on given identifiers and keys.
     ## Keys can be `int`, `char` or `string` and are used for creating
     ## the main `case statement` of your lexer
     echo "✨ TokTok successfully compiled\n"
-
     tks.expectKind(nnkStmtList)
     result = nnkStmtList.newTree()
 
@@ -51,8 +67,8 @@ macro tokens*(tks: untyped) =
             enumTokensNode.add(tkIdent)
             if tk[2].kind == nnkStrLit:
                 # handle string based tokens
-                if prefShowOutput.boolVal == true:
-                    echo "\nToken:", indent(tk[1].strVal, 7), "\nKeyword:", indent(tk[2].strVal, 5)
+                if prefPromptTokens == true:
+                    echo "\n  Token:", indent(tk[1].strVal, 7), "\n  Keyword:", indent(tk[2].strVal, 5)
                 caseStrTokens.add((strToken: tk[2].strVal, tokToken: tk[1].strVal))
             elif tk[2].kind == nnkInfix:
                 let infixStr = tk[2][0].strVal
@@ -64,9 +80,9 @@ macro tokens*(tks: untyped) =
                     if leftTk.kind == nnkCharLit and rightTk.kind == nnkCharLit:
                         let leftTkChar = char(leftTk.intVal)
                         let rightTkChar = char(rightTk.intVal)
-                        if prefShowOutput.boolVal == true:
+                        if prefPromptTokens == true:
                             let keyword = $(leftTkChar & infixStr & rightTkChar)
-                            echo "\nToken:", indent(tk[1].strVal, 7), "\nKeyword:", indent(keyword, 5)
+                            echo "\n  Token:", indent(tk[1].strVal, 7), "\n  Keyword:", indent(keyword, 5)
                     else:
                         discard
                         # echo leftTk.kind
@@ -81,6 +97,9 @@ macro tokens*(tks: untyped) =
 
     # add TK_EOF at the end
     tkIdent = newIdentNode(toUpperAscii(tkEOF.strVal))
+    enumTokensNode.add(tkIdent)
+
+    tkIdent = newIdentNode(toUpperAscii(tkIdentifier.strVal))
     enumTokensNode.add(tkIdent)
 
     # TokenKind enum
@@ -245,24 +264,6 @@ macro tokens*(tks: untyped) =
         )
     )
 
-    # Add to Main Case Statement char-based tokens
-    for caseChar in caseCharTokens:
-        let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseChar.tokToken)
-        # echo tokTokenStr
-        mainCaseStatements.add(
-            newNimNode(nnkOfBranch).add(
-                newLit(caseChar.charToken),
-                newNimNode(nnkCall).add(
-                    newNimNode(nnkDotExpr).add(
-                        newIdentNode("lex"),
-                        newIdentNode("setToken")
-                    ),
-                    newIdentNode(tokTokenStr),
-                    newLit(1)                           # char token offset in lex.bufpos
-                )
-            )
-        )
-
     # Define case statements for string-based identifiers
     # This case is triggered via handleIdent() template from lexutils,
     var strBasedCaseStatement = newNimNode(nnkCaseStmt)
@@ -327,8 +328,11 @@ macro tokens*(tks: untyped) =
         )
     )
 
+    # create template generateIdentCase*() =
     result.add(identCaseTemplate)
 
+    # Push a-z-A-Z range to Main Case Statement
+    # This case is handled by handleIdent
     mainCaseStatements.add(
         newNimNode(nnkOfBranch).add(
             newNimNode(nnkInfix).add(
@@ -351,7 +355,28 @@ macro tokens*(tks: untyped) =
                     )
                 )
             )
-        ),
+        )
+    )
+
+    # Add to Main Case Statement char-based tokens
+    for caseChar in caseCharTokens:
+        let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseChar.tokToken)
+        # echo tokTokenStr
+        mainCaseStatements.add(
+            newNimNode(nnkOfBranch).add(
+                newLit(caseChar.charToken),
+                newNimNode(nnkCall).add(
+                    newNimNode(nnkDotExpr).add(
+                        newIdentNode("lex"),
+                        newIdentNode("setToken")
+                    ),
+                    newIdentNode(tokTokenStr),
+                    newLit(1)                           # char token offset in lex.bufpos
+                )
+            )
+        )
+
+    mainCaseStatements.add(
         newNimNode(nnkElse).add(
             nnkStmtList.newTree(
                 nnkAsgn.newTree(

@@ -5,7 +5,7 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
     var lex = Lexer()
     lexbase.open(lex, newStringStream(fileContents))
     lex.startPos = 0
-    # lex.kind = TK_UNKNOWN
+    lex.kind = TK_UNKNOWN
     lex.token = ""
     lex.error = ""
     return lex
