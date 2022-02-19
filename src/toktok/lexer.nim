@@ -96,15 +96,6 @@ macro tokens*(tks: untyped) =
             )
         )
     )
-
-    # Ends the TokenKind case
-    # `else: TK_UNKNOWN`
-    # caseTokens.add(
-    #     newNimNode(nnkElse).add(
-    #         newNimNode(nnkStmtList).add(newIdentNode(tkUnknown.strVal))
-    #     )
-    # )
-    # caseStrTokens.add((strToken: tokToken: "TK_UNKNOWN"))
     
     # LexerException object
     # LexerException = object of CatchableError
