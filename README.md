@@ -18,9 +18,11 @@ nimble install toktok
 
 <details>
     <summary>Show sample.txt example</summary>
+
 ```
 const hello = 1 + 1
 ```
+
 </details>
 
 ```nim
