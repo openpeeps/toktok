@@ -56,6 +56,48 @@ proc hasLetters[T: Lexer](lex: var T, pos: int): bool =
 proc hasNumbers[T: Lexer](lex: var T, pos: int): bool =
     lex.existsInBuffer(pos, NUMBERS)
 
+template setTokenMulti*[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, multichars = 0) =
+    ## Set meta data of the current token and jump to the next one
+    skip lex
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    var items = 0
+    if multichars != 0:
+        while items < multichars:
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+            inc items
+    else:
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos, offset
+    lex.kind = tokenKind
+
+proc nextToEOL*[T: Lexer](lex: var T): tuple[pos: int, token: string] =
+    ## Get entire buffer starting from given position to the end of line
+    while true:
+        case lex.buf[lex.bufpos]:
+        of NewLines: return
+        of EndOfFile: return
+        else: 
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+    return (pos: lex.bufpos, token: lex.token)
+
+proc next*[T: Lexer](lex: var T, tkChar: char, offset = 1): bool =
+    ## Determine if the next character is as expected,
+    ## without modifying the current buffer position
+    skip lex
+    result = lex.buf[lex.bufpos + offset] in {tkChar}
+
+proc next*[T: Lexer](lex: var T, chars:string): bool =
+    ## Determine the next characters based on given chars string,
+    ## without modifying the current buffer position
+    var i = 1
+    var status = false
+    for c in chars.toSeq():
+        status = lex.next(c, i)
+        inc i
+    result = status
+
 template handleNumber*[T: Lexer](lex: var T) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     lex.token = "0"
