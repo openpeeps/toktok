@@ -6,6 +6,7 @@
 ## 😍 Key Features
 - [x] Support `char`, `string`, `int` based tokens
 - [x] Powered by Nim's Macro
+- [ ] Multi `TokenKind` handler in one line (`=`, `==`, `!==`)
 - [ ] Available as a Native NodeJS addon (soon)
 - [x] Open Source | `MIT`
 
