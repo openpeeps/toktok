@@ -79,7 +79,7 @@ when isMainModule:
 </details>
 
 ### Tips
-Toktok is automatically handling integers `'0'..'9'` and identifiers `'a'..'z', 'A'..'Z'`.
+Toktok handles integers `'0'..'9'` and identifiers `'a'..'z', 'A'..'Z'`.
 
 Toktok is creating a `TokenKind` enumeration for all given tokens. Note that, by default all tokens are transformed to `uppercase` and prefixed with `TK_`.
 You can change that from `toktokSettings`.
