@@ -1,5 +1,5 @@
 <p align="center">
-    <img src=".github/logo.png" width="140px"><br>
+    <img src="https://raw.githubusercontent.com/openpeep/toktok/main/.github/logo.png" width="140px"><br>
     Generic tokenizer written in Nim language, powered by Nim's Macros 👑 (WIP)
 </p>
 
