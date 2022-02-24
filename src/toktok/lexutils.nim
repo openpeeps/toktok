@@ -10,8 +10,8 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
     lex.error = ""
     return lex
 
-const NUMBERS = {'0'..'9'}
-const AZaz = {'a'..'z', 'A'..'Z', '_', '-'}
+const numbers = {'0'..'9'}
+const azAZ = {'a'..'z', 'A'..'Z', '_', '-'}
 
 template setError*[L: Lexer](lexer: var L; message: string): untyped =
     lexer.kind = TK_UNKNOWN
@@ -51,10 +51,10 @@ proc existsInBuffer[T: Lexer](lex: var T, pos: int, chars:set[char]): bool =
     lex.buf[pos] in chars
 
 proc hasLetters[T: Lexer](lex: var T, pos: int): bool =
-    lex.existsInBuffer(pos, AZaz)
+    lex.existsInBuffer(pos, azAZ)
 
 proc hasNumbers[T: Lexer](lex: var T, pos: int): bool =
-    lex.existsInBuffer(pos, NUMBERS)
+    lex.existsInBuffer(pos, numbers)
 
 template setTokenMulti*[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, multichars = 0) =
     ## Set meta data of the current token and jump to the next one

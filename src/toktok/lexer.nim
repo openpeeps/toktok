@@ -94,7 +94,11 @@ macro tokens*(tks: untyped) =
                         # echo leftTk.kind
                         # echo rightTk.kind
             else: # Collect all char-based cases
-                caseCharTokens.add((charToken: char(tk[2].intval), tokToken: tk[1].strVal))
+                let charToken = char(tk[2].intval)
+                let tokToken = tk[1].strVal
+                if prefPromptTokens == true:
+                    echo "\n  Token:", indent(tokToken, 7), "\n  Keyword:", indent($charToken, 5)
+                caseCharTokens.add((charToken: charToken, tokToken: tokToken))
         else: discard   # TODO raise error
 
     # add TK_EOF at the end
