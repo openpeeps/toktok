@@ -98,6 +98,12 @@ proc next*[T: Lexer](lex: var T, chars:string): bool =
         inc i
     result = status
 
+proc setToken*[T: Lexer](lexer: var T, tokenKind: TokenKind, offset = 1) =
+    ## Set meta data for current token
+    lexer.kind = tokenKind
+    lexer.startPos = lexer.getColNumber(lexer.bufpos)
+    inc(lexer.bufpos, offset)
+
 template handleNumber*[T: Lexer](lex: var T) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     lex.token = "0"
@@ -113,9 +119,8 @@ template handleNumber*[T: Lexer](lex: var T) =
         of 'a'..'z', 'A'..'Z', '_':
             lex.setError("Invalid number")
             return
-        else:
-            lex.setToken(TK_INTEGER)
-            break
+        else: break
+    lex.kind = TK_INTEGER
 
 template handleIdent*[T: Lexer](lex: var T) =
     ## Template to handle string-based identifiers
@@ -132,9 +137,3 @@ template handleIdent*[T: Lexer](lex: var T) =
 
     skip lex
     lex.generateIdentCase()           # template defined in toktok
-
-proc setToken*[T: Lexer](lexer: var T, tokenKind: TokenKind, offset = 1) =
-    ## Set meta data for current token
-    lexer.kind = tokenKind
-    lexer.startPos = lexer.getColNumber(lexer.bufpos)
-    inc(lexer.bufpos, offset)
