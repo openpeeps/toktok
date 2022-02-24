@@ -78,6 +78,19 @@ when isMainModule:
 
 </details>
 
+### Generate AST based on Tokens
+Optionally, you can setup your AST nodes
+
+```nim
+ast:
+    Plus      > Infix
+    Minus     > Infix
+    Var       > Prefix
+    Let       > Prefix
+    Const     > Prefix
+    Identifier > Infix
+```
+
 ### Tips
 Toktok handles integers `'0'..'9'` and identifiers `'a'..'z', 'A'..'Z'`.
 
