@@ -122,6 +122,47 @@ template handleNumber*[T: Lexer](lex: var T) =
         else: break
     lex.kind = TK_INTEGER
 
+proc handleSpecial[T: Lexer](lex: var T): char =
+    ## Procedure for for handling special escaping tokens
+    assert lex.buf[lex.bufpos] == '\\'
+    inc lex.bufpos
+    case lex.buf[lex.bufpos]
+    of 'n':
+        lex.token.add "\\n"
+        result = '\n'
+        inc lex.bufpos
+    of '\\':
+        lex.token.add "\\\\"
+        result = '\\'
+        inc lex.bufpos
+    else:
+        lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
+        result = '\0'
+
+proc handleString[T: Lexer](lex: var T) =
+    ## Handle string values wrapped in single or double quotes
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    lex.token = ""
+    inc lex.bufpos
+    while true:
+        case lex.buf[lex.bufpos]
+        of '\\':
+            discard lex.handleSpecial()
+            if lex.hasError(): return
+        of '"':
+            lex.kind = TK_STRING
+            inc lex.bufpos
+            break
+        of NewLines:
+            lex.setError("EOL reached before end of string")
+            return
+        of EndOfFile:
+            lex.setError("EOF reached before end of string")
+            return
+        else:
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+
 template handleIdent*[T: Lexer](lex: var T) =
     ## Template to handle string-based identifiers
     lex.startPos = lex.getColNumber(lex.bufpos)

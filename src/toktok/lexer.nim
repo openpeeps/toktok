@@ -4,6 +4,10 @@ from std/sequtils import toSeq
 
 export lexbase, streams
 
+# dumpAstGen:
+#     case test:
+#     of "\"", "'": handleString
+
 # {.experimental: "caseStmtMacros".}
 
 let
@@ -22,6 +26,7 @@ let
     tkIdentifier {.compileTime.} = newLit("TK_IDENTIFIER")
     tkEOF {.compileTime.} = newLit("TK_EOF")
     tkInt {.compileTime.} = newLit("Tk_Integer")
+    tkString {.compileTime.} = "Tk_String"
 
 var 
     prefIncludeWhitespaces {.compileTime.} = false
@@ -61,6 +66,7 @@ macro tokens*(tks: untyped) =
     var tkIdent = newIdentNode(toUpperAscii(tkUnknown.strVal))
     enumTokensNode.add(tkIdent)
     enumTokensNode.add(newIdentNode(toUpperAscii(tkInt.strVal)))
+    enumTokensNode.add(newIdentNode(toUpperAscii(tkString)))
     
     for tk in tks:
         # tk.expectKind(nnkIdent)
@@ -75,8 +81,19 @@ macro tokens*(tks: untyped) =
                 if prefPromptTokens == true:
                     echo "\n  Token:", indent(tk[1].strVal, 7), "\n  Keyword:", indent(tk[2].strVal, 5)
                 caseStrTokens.add((strToken: tk[2].strVal, tokToken: tk[1].strVal))
+            elif tk[2].kind == nnkPrefix:
+                if tk[2][1].kind == nnkBracket:
+                    # handle string or char based tokens for alternative keywords
+                    for altKey in tk[2][1]:
+                        if altKey.kind == nnkStrLit:
+                            caseStrTokens.add((strToken: altKey.strVal, tokToken: tk[1].strVal))
+                        else: # TODO
+                            discard
+                            # echo altKey.kind
             elif tk[2].kind == nnkInfix:
                 let infixStr = tk[2][0].strVal
+                    # for tkvar in tk[2][1 .. ^1]:
+                        # echo tkvar.strVal
                 # if tk[2][0].strVal == "..":
                     # handle char ranges like '0'..'9' or
                     # variations like 'a'..'z' & 'A'..'Z'
@@ -288,7 +305,7 @@ macro tokens*(tks: untyped) =
                 newNimNode(nnkStmtList).add(newIdentNode(tokTokenStr))
             )
         )
-
+    
     strBasedCaseStatement.add(
         newNimNode(nnkElse).add(
             newNimNode(nnkStmtList).add(newIdentNode("TK_IDENTIFIER"))
@@ -367,13 +384,29 @@ macro tokens*(tks: untyped) =
             newNimNode(nnkStmtList).add(
                 newNimNode(nnkCall).add(
                     newNimNode(nnkDotExpr).add(
-                        newIdentNode(lexer_param_ident),                # TODO, replace string with compileTime var
-                        newIdentNode("handleNumber")        # TODO, replace string with compileTime var
+                        newIdentNode(lexer_param_ident),       # TODO, replace string with compileTime var
+                        newIdentNode("handleNumber")           # TODO, replace string with compileTime var
                     )
                 )
             )
         )
     )
+
+    mainCaseStatements.add(
+        newNimNode(nnkOfBranch).add(
+            newLit('\"'),
+            newLit('\''),
+            newNimNode(nnkStmtList).add(
+                newNimNode(nnkCall).add(
+                    newNimNode(nnkDotExpr).add(
+                        newIdentNode(lexer_param_ident),
+                        newIdentNode("handleString")
+                    )
+                )
+            )
+        )
+    )
+
 
     # Define case for a-z-A-Z 
     # and use handleIdent() template from lexutils
@@ -393,7 +426,7 @@ macro tokens*(tks: untyped) =
                 newNimNode(nnkCall).add(
                     newNimNode(nnkDotExpr).add(
                         newIdentNode(lexer_param_ident),            # TODO, replace string with compileTime var
-                        newIdentNode("handleIdent")     # TODO, replace string with compileTime var
+                        newIdentNode("handleIdent")                 # TODO, replace string with compileTime var
                     )
                 )
             )
