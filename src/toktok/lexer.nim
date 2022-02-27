@@ -4,12 +4,6 @@ from std/sequtils import toSeq
 
 export lexbase, streams
 
-# dumpAstGen:
-#     case test:
-#     of "\"", "'": handleString
-
-# {.experimental: "caseStmtMacros".}
-
 let
     lexer_object_ident {.compileTime.} = "Lexer"
     lexer_object_inherit {.compileTime.} = "BaseLexer"
@@ -87,11 +81,11 @@ macro tokens*(tks: untyped) =
                     for altKey in tk[2][1]:
                         if altKey.kind == nnkStrLit:
                             caseStrTokens.add((strToken: altKey.strVal, tokToken: tk[1].strVal))
-                        else: # TODO
-                            discard
+                        else:
+                            caseCharTokens.add((charToken: char(altKey.intval), tokToken: tk[1].strVal))
                             # echo altKey.kind
-            elif tk[2].kind == nnkInfix:
-                let infixStr = tk[2][0].strVal
+            # elif tk[2].kind == nnkInfix:
+            #     let infixStr = tk[2][0].strVal
                     # for tkvar in tk[2][1 .. ^1]:
                         # echo tkvar.strVal
                 # if tk[2][0].strVal == "..":
