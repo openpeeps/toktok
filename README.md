@@ -49,9 +49,13 @@ tokens:
     Multi     > '*'
     Div       > '/'
     Assign    > '='
+    Comment   > '#' .. EOL      # anything from `#` to end of line
     Var       > "var"
     Let       > "let"
     Const     > "const"
+    # single case for multi keywords
+    BTrue     > @["TRUE", "True", "true", "YES", "Yes", "yes", "y"]
+    BFalse    > @["FALSE", "False", "false", "NO", "No", "no", "n"]
 
 when isMainModule:
     var lex = Lexer.init(fileContents = readFile("sample.txt"))
