@@ -4,10 +4,6 @@ from std/sequtils import toSeq
 
 export lexbase, streams
 
-# dumpAstGen:
-#     case test:
-#         of '#': lex.setToken(TK_COMMENT, lex.nextToEnOL().pos)
-
 let
     lexer_object_ident {.compileTime.} = "Lexer"
     lexer_object_inherit {.compileTime.} = "BaseLexer"
