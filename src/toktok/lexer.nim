@@ -4,6 +4,10 @@ from std/sequtils import toSeq
 
 export lexbase, streams
 
+# dumpAstGen:
+#     case test:
+#         of '#': lex.setToken(TK_COMMENT, lex.nextToEnOL().pos)
+
 let
     lexer_object_ident {.compileTime.} = "Lexer"
     lexer_object_inherit {.compileTime.} = "BaseLexer"
@@ -50,8 +54,12 @@ macro tokens*(tks: untyped) =
 
     var enumTokensNode = newNimNode(nnkEnumTy)
     # var caseTokens = newNimNode(nnkCaseStmt)
-    var caseStrTokens: seq[tuple[strToken: string, tokToken: string]]
-    var caseCharTokens: seq[tuple[charToken: char, tokToken: string]]
+    var
+        caseStrTokens: seq[tuple[strToken: string, tokToken: string]]
+        caseStrTokensEOL: seq[tuple[strToken: string, tokToken: string]]
+        caseCharTokens: seq[tuple[charToken: char, tokToken: string]]
+        caseCharTokensEOL: seq[tuple[charToken: char, tokToken: string]]
+
     # var caseRangeTokens: seq[tuple[charStart: char, charEnd: char, tokToken: string]]
     enumTokensNode.add(newEmptyNode())
     
@@ -84,26 +92,19 @@ macro tokens*(tks: untyped) =
                         else:
                             caseCharTokens.add((charToken: char(altKey.intval), tokToken: tk[1].strVal))
                             # echo altKey.kind
-            # elif tk[2].kind == nnkInfix:
-            #     let infixStr = tk[2][0].strVal
+            elif tk[2].kind == nnkInfix:
+                let infixStr = tk[2][0].strVal
                     # for tkvar in tk[2][1 .. ^1]:
                         # echo tkvar.strVal
-                # if tk[2][0].strVal == "..":
-                    # handle char ranges like '0'..'9' or
-                    # variations like 'a'..'z' & 'A'..'Z'
-                    # var leftTk = tk[2][1]
-                    # var rightTk = tk[2][2]
-                    # if leftTk.kind == nnkCharLit and rightTk.kind == nnkCharLit:
-                    #     let leftTkChar = char(leftTk.intVal)
-                    #     let rightTkChar = char(rightTk.intVal)
-                    #     caseRangeTokens.add(charStart: leftTkChar, charEnd: rightTkChar, tokToken: tk[1].strVal)
-                    #     if prefPromptTokens == true:
-                    #         let keyword = $(leftTkChar & infixStr & rightTkChar)
-                    #         echo "\n  Token:", indent(tk[1].strVal, 7), "\n  Keyword:", indent(keyword, 5)
-                    # else:
-                    #     discard
-                        # echo leftTk.kind
-                        # echo rightTk.kind
+                if tk[2][0].strVal == "..":
+                    tk[2][2].expectKind(nnkIdent)
+                    if tk[2][2].strVal == "EOL":
+                        # Tokenize from start to end of line
+                        if tk[2][1].kind == nnkStrLit:
+                            caseStrTokensEOL.add((strToken: tk[2][1].strVal, tokToken: tk[1].strVal))
+                        else:
+                            caseCharTokensEOL.add((charToken: char(tk[2][1].intVal), tokToken: tk[1].strVal))
+
             else: # Collect all char-based cases
                 let charToken = char(tk[2].intval)
                 let tokToken = tk[1].strVal
@@ -281,6 +282,33 @@ macro tokens*(tks: untyped) =
         )
     )
 
+    # Handle tokenizier from start to end of line
+    for caseCharTokEOL in caseCharTokensEOL:
+        let tokTokenChar = toUpperAscii(tkPrefix.strVal & caseCharTokEOL.tokToken)
+        mainCaseStatements.add(
+            newNimNode(nnkOfBranch).add(
+                newLit(caseCharTokEOL.charToken),
+                nnkStmtList.newTree(
+                    nnkCall.newTree(
+                        nnkDotExpr.newTree(
+                            newIdentNode(lexer_param_ident),
+                            newIdentNode("setToken")
+                        ),
+                        newIdentNode(tokTokenChar),
+                        nnkDotExpr.newTree(
+                            nnkCall.newTree(
+                                nnkDotExpr.newTree(
+                                    newIdentNode(lexer_param_ident),
+                                    newIdentNode("nextToEOL")
+                                )
+                            ),
+                            newIdentNode("pos")
+                        )
+                    )
+                )
+            )
+        )
+
     # Define case statements for string-based identifiers
     # This case is triggered via handleIdent() template from lexutils,
     var strBasedCaseStatement = newNimNode(nnkCaseStmt)
@@ -292,7 +320,6 @@ macro tokens*(tks: untyped) =
     )
     for caseStr in caseStrTokens:
         let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseStr.tokToken)
-        # echo tokTokenStr
         strBasedCaseStatement.add(
             newNimNode(nnkOfBranch).add(
                 newLit(caseStr.strToken),

@@ -56,7 +56,7 @@ proc hasLetters[T: Lexer](lex: var T, pos: int): bool =
 proc hasNumbers[T: Lexer](lex: var T, pos: int): bool =
     lex.existsInBuffer(pos, numbers)
 
-template setTokenMulti*[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, multichars = 0) =
+template setTokenMulti[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, multichars = 0) =
     ## Set meta data of the current token and jump to the next one
     skip lex
     lex.startPos = lex.getColNumber(lex.bufpos)
@@ -71,7 +71,7 @@ template setTokenMulti*[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, 
         inc lex.bufpos, offset
     lex.kind = tokenKind
 
-proc nextToEOL*[T: Lexer](lex: var T): tuple[pos: int, token: string] =
+proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
     ## Get entire buffer starting from given position to the end of line
     while true:
         case lex.buf[lex.bufpos]:
@@ -80,15 +80,15 @@ proc nextToEOL*[T: Lexer](lex: var T): tuple[pos: int, token: string] =
         else: 
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
-    return (pos: lex.bufpos, token: lex.token)
+    result = (pos: lex.bufpos, token: lex.token)
 
-proc next*[T: Lexer](lex: var T, tkChar: char, offset = 1): bool =
+proc next[T: Lexer](lex: var T, tkChar: char, offset = 1): bool =
     ## Determine if the next character is as expected,
     ## without modifying the current buffer position
     skip lex
     result = lex.buf[lex.bufpos + offset] in {tkChar}
 
-proc next*[T: Lexer](lex: var T, chars:string): bool =
+proc next[T: Lexer](lex: var T, chars:string): bool =
     ## Determine the next characters based on given chars string,
     ## without modifying the current buffer position
     var i = 1
@@ -98,13 +98,13 @@ proc next*[T: Lexer](lex: var T, chars:string): bool =
         inc i
     result = status
 
-proc setToken*[T: Lexer](lexer: var T, tokenKind: TokenKind, offset = 1) =
+proc setToken[T: Lexer](lexer: var T, tokenKind: TokenKind, offset = 1) =
     ## Set meta data for current token
     lexer.kind = tokenKind
     lexer.startPos = lexer.getColNumber(lexer.bufpos)
     inc(lexer.bufpos, offset)
 
-template handleNumber*[T: Lexer](lex: var T) =
+template handleNumber[T: Lexer](lex: var T) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     lex.token = "0"
     while lex.buf[lex.bufpos] == '0':
@@ -163,7 +163,7 @@ proc handleString[T: Lexer](lex: var T) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
 
-template handleIdent*[T: Lexer](lex: var T) =
+template handleIdent[T: Lexer](lex: var T) =
     ## Template to handle string-based identifiers
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
