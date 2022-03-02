@@ -3,7 +3,7 @@ from std/strutils import Whitespace
 proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
     ## Initialize a new BaseLexer instance with given Stream
     var lex = Lexer()
-    lexbase.open(lex, newStringStream(fileContents))
+    open(lex, newStringStream(fileContents))
     lex.startPos = 0
     lex.kind = TK_UNKNOWN
     lex.token = ""
