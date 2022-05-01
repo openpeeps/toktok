@@ -5,10 +5,12 @@ from std/sequtils import toSeq
 export lexbase, streams
 
 type
-    SeqStringTuple  = seq[tuple[strToken: string, tokToken: string]]
-    SeqCharTuple    = seq[tuple[charToken: char, tokToken: string]]
-    SeqStrTupleEOS[T: tuple[strToken: string, tokToken: string]]  = seq[tuple[rangeStart: T, rangeEnd: T]]
-    SeqCharTupleEOS[T: tuple[charToken: char, tokToken: string]] = seq[tuple[rangeStart: T, rangeEnd: T]]
+    StringTuple = tuple[strToken: string, tokToken: string]
+    CharTuple = tuple[charToken: char, tokToken: string]
+    SeqStringTuple  = seq[StringTuple]
+    SeqCharTuple    = seq[CharTuple]
+    SeqStrTupleEOS = seq[tuple[rangeStart: StringTuple, rangeEnd: StringTuple]]
+    SeqCharTupleEOS = seq[tuple[rangeStart: CharTuple, rangeEnd: CharTuple]]
 
 let
     lexer_object_ident {.compileTime.} = "Lexer"
@@ -112,15 +114,15 @@ macro tokens*(tks: untyped) =
                     elif tk[2][2].kind == nnkCharLit:
                         ## Collect all chars from given start point to specified end point
                         if tk[2][1].kind == nnkStrLit:
-                            caseStrTokensEOS.add((
-                                rangeStart: (strToken: tk[2][1].strVal, tokToken: tk[1].strVal),
-                                rangeEnd: (strToken: tk[2][2].strVal, tokToken: tk[1].strVal)
-                            ))
+                            caseStrTokensEOS.add (
+                                    rangeStart: (strToken: tk[2][1].strVal, tokToken: tk[1].strVal),
+                                    rangeEnd: (strToken: tk[2][2].strVal, tokToken: tk[1].strVal)
+                                )
                         elif tk[2][1].kind == nnkCharLit:
-                            caseCharTokensEOS.add((
-                                rangeStart: (charToken: char(tk[2][1].intVal), tokToken: tk[1].strVal),
-                                rangeEnd: (charToken: char(tk[2][2].intVal), tokToken: tk[1].strVal)
-                            ))
+                            caseCharTokensEOS.add (
+                                    rangeStart: (charToken: char(tk[2][1].intVal), tokToken: tk[1].strVal),
+                                    rangeEnd: (charToken: char(tk[2][2].intVal), tokToken: tk[1].strVal)
+                                )
                         else: discard # TODO raise error
 
             else: # Collect all char-based cases
@@ -138,8 +140,6 @@ macro tokens*(tks: untyped) =
     tkIdent = newIdentNode(toUpperAscii(tkIdentifier.strVal))
     enumTokensNode.add(tkIdent)
 
-    # echo caseCharTokensEOS
-
     # Creates a public `TokenKind* = enum` with all given tokens
     result.add(
         newNimNode(nnkTypeSection).add(
@@ -153,25 +153,10 @@ macro tokens*(tks: untyped) =
             )
         )
     )
-    
-    # LexerException object
-    # LexerException = object of CatchableError
-    result.add(
-        newNimNode(nnkTypeSection).add(
-            newNimNode(nnkTypeDef).add(
-                newNimNode(nnkPostfix).add(
-                    newIdentNode("*"),
-                    newIdentNode(lexer_exception_ident)
-                ),
-                newEmptyNode(),
-                newNimNode(nnkObjectTy).add(
-                    newEmptyNode(),
-                    newNimNode(nnkOfInherit).add(newIdentNode("CatchableError")),
-                    newEmptyNode()
-                )
-            )
-        )
-    )
+
+    result.add quote do:
+        type
+            LexerException* = object of CatchableError
 
     # Create TokenTuple
     # TokenTuple = tuple[kind: TokenKind, value: string, wsno, col, line: int]
