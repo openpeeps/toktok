@@ -21,14 +21,14 @@ let
     template_hasError_ident {.compileTime.} = newLit("hasError")
     proc_getError_ident {.compileTime.} = newLit("getError")
 
-    enum_token_ident {.compileTime.} = newLit("TokenKind")
-    token_tuple_ident {.compileTime.} = newLit("TokenTuple")
+    enum_token_ident {.compileTime.} = "TokenKind"
+    token_tuple_ident {.compileTime.} = "TokenTuple"
     tkPrefix {.compileTime.} = newLit("tk_")
-    tkUnknown {.compileTime.} = newLit("TK_UNKNOWN")
-    tkIdentifier {.compileTime.} = newLit("TK_IDENTIFIER")
-    tkEOF {.compileTime.} = newLit("TK_EOF")
-    tkInt {.compileTime.} = newLit("Tk_Integer")
-    tkString {.compileTime.} = "Tk_String"
+    tkUnknown {.compileTime.} = "TK_UNKNOWN"
+    tkIdentifier {.compileTime.} = "TK_IDENTIFIER"
+    tkEOF {.compileTime.} = "TK_EOF"
+    tkInt {.compileTime.} = "TK_INTEGER"
+    tkString {.compileTime.} = "TK_STRING"
 
 var 
     prefIncludeWhitespaces {.compileTime.} = false
@@ -74,9 +74,9 @@ macro tokens*(tks: untyped) =
     
     # add TK_UNKNOWN at the begining of TokenKind enum
     # add TK_INTEGER as second
-    var tkIdent = newIdentNode(toUpperAscii(tkUnknown.strVal))
+    var tkIdent = newIdentNode(toUpperAscii(tkUnknown))
     enumTokensNode.add(tkIdent)
-    enumTokensNode.add(newIdentNode(toUpperAscii(tkInt.strVal)))
+    enumTokensNode.add(newIdentNode(toUpperAscii(tkInt)))
     enumTokensNode.add(newIdentNode(toUpperAscii(tkString)))
     
     for tk in tks:
@@ -134,10 +134,10 @@ macro tokens*(tks: untyped) =
         else: discard   # TODO raise error
 
     # add TK_EOF at the end
-    tkIdent = newIdentNode(toUpperAscii(tkEOF.strVal))
+    tkIdent = newIdentNode(toUpperAscii(tkEOF))
     enumTokensNode.add(tkIdent)
 
-    tkIdent = newIdentNode(toUpperAscii(tkIdentifier.strVal))
+    tkIdent = newIdentNode(toUpperAscii(tkIdentifier))
     enumTokensNode.add(tkIdent)
 
     # Creates a public `TokenKind* = enum` with all given tokens
@@ -146,7 +146,7 @@ macro tokens*(tks: untyped) =
             newNimNode(nnkTypeDef).add(
                 newNimNode(nnkPostfix).add(
                     newIdentNode("*"),
-                    newIdentNode(enum_token_ident.strVal)
+                    newIdentNode(enum_token_ident)
                 ),
                 newEmptyNode(),
                 enumTokensNode
@@ -165,13 +165,13 @@ macro tokens*(tks: untyped) =
             newNimNode(nnkTypeDef).add(
                 newNimNode(nnkPostfix).add(
                     newIdentNode("*"),
-                    newIdentNode(token_tuple_ident.strval)
+                    newIdentNode(token_tuple_ident)
                 ),
                 newEmptyNode(),
                 newNimNode(nnkTupleTy).add(
                     newNimNode(nnkIdentDefs).add(
                         newIdentNode("kind"),
-                        newIdentNode(enum_token_ident.strVal),
+                        newIdentNode(enum_token_ident),
                         newEmptyNode()
                     ),
                     newNimNode(nnkIdentDefs).add(
@@ -193,7 +193,7 @@ macro tokens*(tks: untyped) =
 
     # Create Token = object
     var fields = @[
-        (key: "kind", fType: enum_token_ident.strval),
+        (key: "kind", fType: enum_token_ident),
         (key: "token", fType: "string"),
         (key: "error", fType: "string"),
         (key: "startPos", fType: "int"),
@@ -491,7 +491,7 @@ macro tokens*(tks: untyped) =
                         newIdentNode(lexer_param_ident),
                         newIdentNode("kind")
                     ),
-                    newIdentNode("TK_IDENTIFIER")       # TODO, replace string with compileTime var
+                    newIdentNode(tkUnknown)
                 )
             )
         )
@@ -515,7 +515,7 @@ macro tokens*(tks: untyped) =
                 )
             ),
             nnkFormalParams.newTree(
-                newIdentNode(token_tuple_ident.strVal),
+                newIdentNode(token_tuple_ident),
                 nnkIdentDefs.newTree(
                     newIdentNode(lexer_param_ident),
                     nnkVarTy.newTree(
@@ -533,7 +533,7 @@ macro tokens*(tks: untyped) =
                         newIdentNode(lexer_param_ident),
                         newIdentNode("kind")
                     ),
-                    newIdentNode("TK_UNKNOWN")
+                    newIdentNode(tkUnknown)
                 ),
                 # setLen(lex.token, 0)
                 nnkCall.newTree(
@@ -549,11 +549,25 @@ macro tokens*(tks: untyped) =
                     newIdentNode(lexer_param_ident)
                 ),
 
-                # Unpack collected case statements
-                # for char, string and int-based tokens
+                # Unpack collected case statements for char, string, and int-based tokens
                 mainCaseStatements,
-                
-                # TODO, create nnkAsgn dynamically
+
+                nnkIfStmt.newTree(
+                    nnkElifBranch.newTree(
+                        nnkInfix.newTree(
+                            newIdentNode("=="),
+                            nnkDotExpr.newTree(newIdentNode("lex"), newIdentNode("kind")),
+                            newIdentNode(tkUnknown)
+                        ),
+                        nnkStmtList.newTree(
+                            nnkCall.newTree(
+                                nnkDotExpr.newTree(newIdentNode("lex"), newIdentNode("setError")),
+                                newLit("Unrecognized character")
+                            )
+                        )
+                    )
+                ),
+               
                 nnkAsgn.newTree(
                     newIdentNode("result"),
                     nnkTupleConstr.newTree(
