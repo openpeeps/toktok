@@ -1,6 +1,5 @@
 import std/[lexbase, streams, macros]
 from std/strutils import `%`, replace, indent, toUpperAscii, startsWith
-from std/sequtils import toSeq
 
 export lexbase, streams
 
@@ -16,10 +15,6 @@ let
     lexer_object_ident {.compileTime.} = "Lexer"
     lexer_object_inherit {.compileTime.} = "BaseLexer"
     lexer_param_ident {.compileTime.} = "lex"
-    lexer_exception_ident {.compileTime.} = "LexerException"
-
-    template_hasError_ident {.compileTime.} = newLit("hasError")
-    proc_getError_ident {.compileTime.} = newLit("getError")
 
     enum_token_ident {.compileTime.} = "TokenKind"
     token_tuple_ident {.compileTime.} = "TokenTuple"
@@ -102,7 +97,7 @@ macro tokens*(tks: untyped) =
                             caseCharTokens.add((charToken: char(altKey.intval), tokToken: tk[1].strVal))
                             # echo altKey.kind
             elif tk[2].kind == nnkInfix:
-                let infixStr = tk[2][0].strVal
+                # let infixStr = tk[2][0].strVal
                 if tk[2][0].strVal == "..":
                     if tk[2][2].kind == nnkIdent:
                         if tk[2][2].strVal == "EOL":
@@ -321,7 +316,6 @@ macro tokens*(tks: untyped) =
     # TODO ``nextToSpec`` procedure should be able to handle multi lines
     # between `A` and `B`
     for caseCharTokEOS in caseCharTokensEOS:
-        let startChar = toUpperAscii(tkPrefix.strVal & caseCharTokEOS.rangeStart.tokToken)
         let endChar = toUpperAscii(tkPrefix.strVal & caseCharTokEOS.rangeEnd.tokToken)
         mainCaseStatements.add(
             nnkOfBranch.newTree(
