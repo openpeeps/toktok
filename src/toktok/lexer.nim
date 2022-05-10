@@ -112,7 +112,7 @@ macro tokens*(tks: untyped) =
                             else:
                                 caseCharTokensEOL.add((charToken: char(tk[2][1].intVal), tokToken: tk[1].strVal))
                     elif tk[2][2].kind == nnkCharLit:
-                        ## Collect all chars from given start point to specified end point
+                        ## Collect all chars from specified start char to end char
                         if tk[2][1].kind == nnkStrLit:
                             caseStrTokensEOS.add (
                                     rangeStart: (strToken: tk[2][1].strVal, tokToken: tk[1].strVal),
@@ -287,7 +287,7 @@ macro tokens*(tks: untyped) =
         )
     )
 
-    # Handle tokenizier from start to end of line
+    # Tokenize from given start char to EOL
     for caseCharTokEOL in caseCharTokensEOL:
         let tokTokenChar = toUpperAscii(tkPrefix.strVal & caseCharTokEOL.tokToken)
         mainCaseStatements.add(
@@ -310,6 +310,31 @@ macro tokens*(tks: untyped) =
                             newIdentNode("pos")
                         )
                     )
+                )
+            )
+        )
+
+    # Tokenize from given start char to end char
+    # of 'A':
+    #   lex.nextToSpec(endChar = 'B', tokenKind: TK_RANGE_EXAMPLE)
+    #   
+    # TODO ``nextToSpec`` procedure should be able to handle multi lines
+    # between `A` and `B`
+    for caseCharTokEOS in caseCharTokensEOS:
+        let startChar = toUpperAscii(tkPrefix.strVal & caseCharTokEOS.rangeStart.tokToken)
+        let endChar = toUpperAscii(tkPrefix.strVal & caseCharTokEOS.rangeEnd.tokToken)
+        mainCaseStatements.add(
+            nnkOfBranch.newTree(
+                newLit(caseCharTokEOS.rangeStart.charToken),
+                nnkStmtList.newTree(
+                    nnkCall.newTree(
+                        nnkDotExpr.newTree(
+                            newIdentNode(lexer_param_ident),
+                            newIdentNode("nextToSpec")
+                        ),
+                        newLit(caseCharTokEOS.rangeEnd.charToken),
+                        newIdentNode(endChar)
+                    ),
                 )
             )
         )

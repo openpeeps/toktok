@@ -82,30 +82,28 @@ proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
             inc lex.bufpos
     result = (pos: lex.bufpos, token: lex.token)
 
-proc nextToSpec[L: Lexer](lex: var L, endChar: char, tokToken: TokenKind): tuple[pos: int, token: string] =
+proc nextToSpec[L: Lexer](lex: var L, endChar: char, tokenKind: TokenKind) =
     ## Handle string values wrapped in single or double quotes
     lex.startPos = lex.getColNumber(lex.bufpos)
-    lex.token = ""
+    # lex.token = ""
     inc lex.bufpos
     while true:
-        case lex.buf[lex.bufpos]
-        of '\\':
+        if lex.buf[lex.bufpos] == '\\':
             discard lex.handleSpecial()
             if lex.hasError(): return
-        of endChar:
-            lex.kind = tokToken
+        elif lex.buf[lex.bufpos] == endChar:
+            lex.kind = tokenKind
             inc lex.bufpos
             break
-        of NewLines:
+        elif lex.buf[lex.bufpos] in NewLines:
             lex.setError("EOL reached before end of input")
             return
-        of EndOfFile:
+        elif lex.buf[lex.bufpos] == EndOfFile:
             lex.setError("EOF reached before end of input")
             return
         else:
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
-
 
 proc next[T: Lexer](lex: var T, tkChar: char, offset = 1): bool =
     ## Determine if the next character is as expected,
@@ -200,6 +198,5 @@ template handleIdent[T: Lexer](lex: var T) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
         else: break
-
-    skip lex
+    # skip lex
     lex.generateIdentCase()           # template defined in toktok
