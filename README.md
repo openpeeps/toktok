@@ -115,7 +115,6 @@ _Your Toktok project here_
 
 #### 0.1.0
 - [ ] Add tests
-- [ ] Toktok as Native NodeJS addon
 
 ### 0.2.0
 _todo_
