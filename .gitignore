@@ -1,5 +1,8 @@
+.DS_Store
 nimcache/
 nimblecache/
 htmldocs/
 bin/*
 testresults/
+/tests/*
+!/tests/*.nim
