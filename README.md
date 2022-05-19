@@ -5,12 +5,12 @@
 
 ## 😍 Key Features
 - [x] Support `char`, `string`, `int` based tokens
-- [x] Powered by Nim's Macro
+- [x] Powered by Nim's Macros ✨
+- [x] No RegEx 🍃
 - [x] Meta-programming `TokenKind*` `enum`
 - [x] Meta-programming `case` statement for all tokens
 - [x] `getToken()` procedure to retrieve token by token
 - [ ] Multi `TokenKind` handler in one line (`=`, `==`, `!==`)
-- [ ] Available as a Native NodeJS addon (soon)
 - [x] Open Source | `MIT`
 
 Toktok is a generic Lexer, based on standard Nim libraries `streams`, `lexbase` and `macros`.
@@ -50,6 +50,7 @@ tokens:
     Div       > '/'
     Assign    > '='
     Comment   > '#' .. EOL      # anything from `#` to end of line
+    CommentAlt > "/*" .. "*/"   # anything starting with `/*` to `*/`
     Var       > "var"
     Let       > "let"
     Const     > "const"
