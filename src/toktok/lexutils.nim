@@ -73,6 +73,8 @@ proc hasNumbers[T: Lexer](lex: var T, pos: int): bool =
 
 proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
     ## Get entire buffer starting from given position to the end of line
+    inc lex.bufpos
+    skip lex
     while true:
         case lex.buf[lex.bufpos]:
         of NewLines: return
