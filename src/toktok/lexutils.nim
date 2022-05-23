@@ -1,4 +1,5 @@
 from std/strutils import Whitespace
+from std/sequtils import toSeq
 
 proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
     ## Initialize a new BaseLexer instance with given Stream
@@ -34,7 +35,6 @@ proc handleNewLine[T: Lexer](lex: var T) =
     else: discard
 
 proc skip*[T: Lexer](lex: var T) =
-    ## Procedure for skipping/offset between columns/positions 
     var wsno: int
     while true:
         case lex.buf[lex.bufpos]
@@ -50,26 +50,26 @@ proc skip*[T: Lexer](lex: var T) =
 proc existsInBuffer[T: Lexer](lex: var T, pos: int, chars:set[char]): bool = 
     lex.buf[pos] in chars
 
-proc hasLetters[T: Lexer](lex: var T, pos: int): bool =
+proc hasLetters*[T: Lexer](lex: var T, pos: int): bool =
     lex.existsInBuffer(pos, azAZ)
 
-proc hasNumbers[T: Lexer](lex: var T, pos: int): bool =
+proc hasNumbers*[T: Lexer](lex: var T, pos: int): bool =
     lex.existsInBuffer(pos, numbers)
 
-# template setTokenMulti[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, multichars = 0) =
-#     ## Set meta data of the current token and jump to the next one
-#     skip lex
-#     lex.startPos = lex.getColNumber(lex.bufpos)
-#     var items = 0
-#     if multichars != 0:
-#         while items < multichars:
-#             add lex.token, lex.buf[lex.bufpos]
-#             inc lex.bufpos
-#             inc items
-#     else:
-#         add lex.token, lex.buf[lex.bufpos]
-#         inc lex.bufpos, offset
-#     lex.kind = tokenKind
+template setTokenMulti[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, multichars = 0) =
+    ## Set meta data of the current token and jump to the next one
+    skip lex
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    var items = 0
+    if multichars != 0:
+        while items < multichars:
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+            inc items
+    else:
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos, offset
+    lex.kind = tokenKind
 
 proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
     ## Get entire buffer starting from given position to the end of line
@@ -108,14 +108,14 @@ proc nextToSpec[L: Lexer](lex: var L, endChar: char, tokenKind: TokenKind) =
             inc lex.bufpos
 
 proc next[T: Lexer](lex: var T, tkChar: char, offset = 1): bool =
-    ## Determine if the next character is as expected,
-    ## without modifying the current buffer position
+    ## Determine if next char is as expected without
+    ## modifying current buffer pos
     skip lex
     result = lex.buf[lex.bufpos + offset] in {tkChar}
 
 proc next[T: Lexer](lex: var T, chars:string): bool =
-    ## Determine the next characters based on given chars string,
-    ## without modifying the current buffer position
+    ## Determine if next group of chars is as expected
+    ## without modifying current buffer pos
     var i = 1
     var status = false
     for c in chars.toSeq():

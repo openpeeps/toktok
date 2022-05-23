@@ -1,4 +1,4 @@
-import std/[lexbase, streams, macros]
+import std/[lexbase, streams, macros, tables]
 from std/strutils import `%`, replace, indent, toUpperAscii, startsWith
 
 export lexbase, streams
@@ -43,6 +43,12 @@ macro toktokSettings*(
     # transform tokens to uppercaseAscii
     prefUppercaseTokens = uppercaseTokens
 
+# dumpAstGen:
+#     case ok:
+#     of '@':
+#         if next(lex, "asadsa"):
+#             setToken(lex, TK_IMPORT, 2)
+
 macro tokens*(tks: untyped) =
     ## Generate TokenKind enumeration based on given identifiers and keys.
     ## Keys can be `int`, `char` or `string` and are used for creating
@@ -69,18 +75,20 @@ macro tokens*(tks: untyped) =
     
     # add TK_UNKNOWN at the begining of TokenKind enum
     # add TK_INTEGER as second
-    var tkIdent = newIdentNode(toUpperAscii(tkUnknown))
+    var tkIdent = ident(toUpperAscii(tkUnknown))
     enumTokensNode.add(tkIdent)
-    enumTokensNode.add(newIdentNode(toUpperAscii(tkInt)))
-    enumTokensNode.add(newIdentNode(toUpperAscii(tkString)))
+    enumTokensNode.add(ident(toUpperAscii(tkInt)))
+    enumTokensNode.add(ident(toUpperAscii(tkString)))
     
+    var variants: Table[char, seq[tuple[chartk: seq[char], tok: string]]]
+
     for tk in tks:
         # tk.expectKind(nnkIdent)
         if tk.kind == nnkIdent:
-            tkIdent = newIdentNode(toUpperAscii(tkPrefix.strVal & tk.strVal))
+            tkIdent = ident(toUpperAscii(tkPrefix.strVal & tk.strVal))
             enumTokensNode.add(tkIdent)
         elif tk.kind == nnkInfix:
-            tkIdent = newIdentNode(toUpperAscii(tkPrefix.strVal & tk[1].strVal))
+            tkIdent = ident(toUpperAscii(tkPrefix.strVal & tk[1].strVal))
             enumTokensNode.add(tkIdent)
             if tk[2].kind == nnkStrLit:
                 # handle string based tokens
@@ -120,19 +128,34 @@ macro tokens*(tks: untyped) =
                                 )
                         else: discard # TODO raise error
 
-            else: # Collect all char-based cases
-                let charToken = char(tk[2].intval)
+            else:
                 let tokToken = tk[1].strVal
-                if prefPromptTokens == true:
-                    echo "\n  Token:", indent(tokToken, 7), "\n  Keyword:", indent($charToken, 5)
-                caseCharTokens.add((charToken: charToken, tokToken: tokToken))
+                if tk[2].kind == nnkTupleConstr:
+                    # handle variant based tokens for chars and strings like
+                    # if next == '!' and next == '=': TK_MY_TOKEN
+                    var variantCase: seq[char]
+                    let firstChar = char(tk[2][0].intVal)
+                    for variant in tk[2]:
+                        if variant.kind == nnkCharLit:
+                            variantCase.add char(variant.intVal)
+                        elif variant.kind == nnkStrLit:
+                            for v in variant.strVal:
+                                variantCase.add v
+                        if not variants.hasKey(firstChar):
+                            variants[firstChar] = newSeq[tuple[chartk: seq[char], tok: string]]()
+                    variants[firstChar].add (chartk: variantCase, tok: tokToken)
+                elif tk[2].kind == nnkCharLit:
+                    let charToken = char(tk[2].intval)
+                    if prefPromptTokens == true:
+                        echo "\n  Token:", indent(tokToken, 7), "\n  Keyword:", indent($charToken, 5)
+                    caseCharTokens.add((charToken: charToken, tokToken: tokToken))
         else: discard   # TODO raise error
 
     # add TK_EOF at the end
-    tkIdent = newIdentNode(toUpperAscii(tkEOF))
+    tkIdent = ident(toUpperAscii(tkEOF))
     enumTokensNode.add(tkIdent)
 
-    tkIdent = newIdentNode(toUpperAscii(tkIdentifier))
+    tkIdent = ident(toUpperAscii(tkIdentifier))
     enumTokensNode.add(tkIdent)
 
     # Creates a public `TokenKind* = enum` with all given tokens
@@ -140,18 +163,30 @@ macro tokens*(tks: untyped) =
         newNimNode(nnkTypeSection).add(
             newNimNode(nnkTypeDef).add(
                 newNimNode(nnkPostfix).add(
-                    newIdentNode("*"),
-                    newIdentNode(enum_token_ident)
+                    ident "*",
+                    ident enum_token_ident
                 ),
                 newEmptyNode(),
                 enumTokensNode
             )
+        ),
+        newNimNode(nnkTypeSection).add(
+            newNimNode(nnkTypeDef).add(
+                newNimNode(nnkPostfix).add(
+                    ident "*",
+                    ident "LexerException"
+                ),
+                newEmptyNode(),
+                newNimNode(nnkObjectTy).add(
+                    newEmptyNode(),
+                    nnkOfInherit.newTree(
+                        ident "CatchableError"
+                    ),
+                    newEmptyNode()
+                )
+            )
         )
     )
-
-    result.add quote do:
-        type
-            LexerException* = object of CatchableError
 
     # Create TokenTuple
     # TokenTuple = tuple[kind: TokenKind, value: string, wsno, col, line: int]
@@ -159,26 +194,26 @@ macro tokens*(tks: untyped) =
         newNimNode(nnkTypeSection).add(
             newNimNode(nnkTypeDef).add(
                 newNimNode(nnkPostfix).add(
-                    newIdentNode("*"),
-                    newIdentNode(token_tuple_ident)
+                    ident "*",
+                    ident token_tuple_ident
                 ),
                 newEmptyNode(),
                 newNimNode(nnkTupleTy).add(
                     newNimNode(nnkIdentDefs).add(
-                        newIdentNode("kind"),
-                        newIdentNode(enum_token_ident),
+                        ident "kind",
+                        ident enum_token_ident,
                         newEmptyNode()
                     ),
                     newNimNode(nnkIdentDefs).add(
-                        newIdentNode("value"),
-                        newIdentNode("string"),
+                        ident "value",
+                        ident "string",
                         newEmptyNode()
                     ),
                     newNimNode(nnkIdentDefs).add(
-                        newIdentNode("wsno"),
-                        newIdentNode("col"),
-                        newIdentNode("line"),
-                        newIdentNode("int"),
+                        ident "wsno",
+                        ident "col",
+                        ident "line",
+                        ident "int",
                         newEmptyNode()
                     ),
                 )
@@ -195,27 +230,27 @@ macro tokens*(tks: untyped) =
         (key: "wsno", fType: "int"),
     ]
 
-    var objectFields = newNimNode(nnkRecList)
+    var objectFields = nnkRecList.newTree()
     for f in fields:
         objectFields.add(
             newNimNode(nnkIdentDefs).add(
-                newIdentNode(f.key),
-                newIdentNode(f.fType),
+                ident f.key,
+                ident f.fType,
                 newEmptyNode()
             )
         )
 
     result.add(
-        newNimNode(nnkTypeSection).add(
-            newNimNode(nnkTypeDef).add(
-                newNimNode(nnkPostfix).add(
-                    newIdentNode("*"),
-                    newIdentNode(lexer_object_ident)
+        nnkTypeSection.newTree(
+            nnkTypeDef.newTree(
+                nnkPostfix.newTree(
+                    ident "*",
+                    ident lexer_object_ident
                 ),
                 newEmptyNode(),
-                newNimNode(nnkObjectTy).add(
+                nnkObjectTy.newTree(
                     newEmptyNode(),
-                    newNimNode(nnkOfInherit).add(newIdentNode(lexer_object_inherit)),
+                    nnkOfInherit.newTree(ident lexer_object_inherit),
                     objectFields
                 )
             )
@@ -225,9 +260,9 @@ macro tokens*(tks: untyped) =
     result.add(
         nnkIncludeStmt.newTree(
             nnkInfix.newTree(
-                newIdentNode("/"),
-                newIdentNode("toktok"),
-                newIdentNode("lexutils")
+                ident "/",
+                ident "toktok",
+                ident "lexutils"
             )
         )
     )
@@ -238,12 +273,12 @@ macro tokens*(tks: untyped) =
     mainCaseStatements.add(
         nnkBracketExpr.newTree(
             nnkDotExpr.newTree(
-                newIdentNode(lexer_param_ident),
-                newIdentNode("buf")
+                ident(lexer_param_ident),
+                ident("buf")
             ),
             nnkDotExpr.newTree(
-                newIdentNode(lexer_param_ident),
-                newIdentNode("bufpos")
+                ident(lexer_param_ident),
+                ident("bufpos")
             )
         )
     )
@@ -253,30 +288,18 @@ macro tokens*(tks: untyped) =
     #   lex.kind = TK_EOF
     mainCaseStatements.add(
         nnkOfBranch.newTree(
-            newIdentNode("EndOfFile"),
-            nnkStmtList.newTree(
-                nnkAsgn.newTree(
-                    nnkDotExpr.newTree(
-                        newIdentNode(lexer_param_ident),
-                        newIdentNode("startPos")
-                    ),
-                    nnkCall.newTree(
-                        nnkDotExpr.newTree(
-                            newIdentNode(lexer_param_ident),
-                            newIdentNode("getColNumber")
-                        ),
-                        nnkDotExpr.newTree(
-                            newIdentNode(lexer_param_ident),
-                            newIdentNode("bufpos")
-                        )
+            ident "EndOfFile",
+            newStmtList(
+                newAssignment(
+                    newDotExpr(ident(lexer_param_ident), ident("startPos")),
+                    newCall(
+                        newDotExpr(ident(lexer_param_ident), ident("getColNumber")),
+                        newDotExpr(ident(lexer_param_ident), ident("bufpos")),
                     )
                 ),
-                nnkAsgn.newTree(
-                    nnkDotExpr.newTree(
-                        newIdentNode(lexer_param_ident),
-                        newIdentNode("kind")
-                    ),
-                    newIdentNode("TK_EOF")
+                newAssignment(
+                    newDotExpr(ident(lexer_param_ident), ident("kind")),
+                    ident("TK_EOF")
                 )
             )
         )
@@ -291,18 +314,18 @@ macro tokens*(tks: untyped) =
                 nnkStmtList.newTree(
                     nnkCall.newTree(
                         nnkDotExpr.newTree(
-                            newIdentNode(lexer_param_ident),
-                            newIdentNode("setToken")
+                            ident(lexer_param_ident),
+                            ident("setToken")
                         ),
-                        newIdentNode(tokTokenChar),
+                        ident(tokTokenChar),
                         nnkDotExpr.newTree(
                             nnkCall.newTree(
                                 nnkDotExpr.newTree(
-                                    newIdentNode(lexer_param_ident),
-                                    newIdentNode("nextToEOL")
+                                    ident(lexer_param_ident),
+                                    ident("nextToEOL")
                                 )
                             ),
-                            newIdentNode("pos")
+                            ident("pos")
                         )
                     )
                 )
@@ -319,15 +342,12 @@ macro tokens*(tks: untyped) =
         let endChar = toUpperAscii(tkPrefix.strVal & caseCharTokEOS.rangeEnd.tokToken)
         mainCaseStatements.add(
             nnkOfBranch.newTree(
-                newLit(caseCharTokEOS.rangeStart.charToken),
-                nnkStmtList.newTree(
-                    nnkCall.newTree(
-                        nnkDotExpr.newTree(
-                            newIdentNode(lexer_param_ident),
-                            newIdentNode("nextToSpec")
-                        ),
-                        newLit(caseCharTokEOS.rangeEnd.charToken),
-                        newIdentNode(endChar)
+                newLit caseCharTokEOS.rangeStart.charToken,
+                newStmtList(
+                    newCall(
+                        newDotExpr(ident lexer_param_ident, ident "nextToSpec"),
+                        newLit caseCharTokEOS.rangeEnd.charToken,
+                        ident endChar
                     ),
                 )
             )
@@ -338,8 +358,8 @@ macro tokens*(tks: untyped) =
     var strBasedCaseStatement = newNimNode(nnkCaseStmt)
     strBasedCaseStatement.add(
         newNimNode(nnkDotExpr).add(
-            newIdentNode(lexer_param_ident),
-            newIdentNode("token")
+            ident(lexer_param_ident),
+            ident("token")
         )
     )
     for caseStr in caseStrTokens:
@@ -347,13 +367,13 @@ macro tokens*(tks: untyped) =
         strBasedCaseStatement.add(
             newNimNode(nnkOfBranch).add(
                 newLit(caseStr.strToken),
-                newNimNode(nnkStmtList).add(newIdentNode(tokTokenStr))
+                newNimNode(nnkStmtList).add(ident(tokTokenStr))
             )
         )
     
     strBasedCaseStatement.add(
         newNimNode(nnkElse).add(
-            newNimNode(nnkStmtList).add(newIdentNode("TK_IDENTIFIER"))
+            newNimNode(nnkStmtList).add(ident("TK_IDENTIFIER"))
         )
     )
 
@@ -362,35 +382,32 @@ macro tokens*(tks: untyped) =
     var identCaseTemplate = newNimNode(nnkTemplateDef)
     identCaseTemplate.add(
         newNimNode(nnkPostfix).add(
-            newIdentNode("*"),
-            newIdentNode("generateIdentCase")
+            ident "*",
+            ident "generateIdentCase"
         ),
         newEmptyNode(),
         newNimNode(nnkGenericParams).add(
             newNimNode(nnkIdentDefs).add(
-                newIdentNode("L"),
-                newIdentNode("Lexer"),
+                ident "L",
+                ident "Lexer",
                 newEmptyNode()
             )
         ),
-        newNimNode(nnkFormalParams).add(
+        nnkFormalParams.newTree(
             newEmptyNode(),
-            newNimNode(nnkIdentDefs).add(
-                newIdentNode(lexer_param_ident),
+            nnkIdentDefs.newTree(
+                ident lexer_param_ident,
                 newNimNode(nnkVarTy).add(
-                    newIdentNode("L")
+                    ident "L"
                 ),
                 newEmptyNode()
             )
         ),
         newEmptyNode(),
         newEmptyNode(),
-        newNimNode(nnkStmtList).add(
-            newNimNode(nnkAsgn).add(
-                newNimNode(nnkDotExpr).add(
-                    newIdentNode(lexer_param_ident),
-                    newIdentNode("kind")
-                ),
+        newStmtList(
+            newAssignment(
+                newDotExpr(ident lexer_param_ident, ident "kind"),
                 strBasedCaseStatement
             )
         )
@@ -404,18 +421,11 @@ macro tokens*(tks: untyped) =
     mainCaseStatements.add(
         newNimNode(nnkOfBranch).add(
             newNimNode(nnkInfix).add(
-                newIdentNode(".."),
+                ident(".."),
                 newLit('0'),
                 newLit('9')
             ),
-            newNimNode(nnkStmtList).add(
-                newNimNode(nnkCall).add(
-                    newNimNode(nnkDotExpr).add(
-                        newIdentNode(lexer_param_ident),       # TODO, replace string with compileTime var
-                        newIdentNode("handleNumber")           # TODO, replace string with compileTime var
-                    )
-                )
-            )
+            newStmtList(newCall(newDotExpr(ident lexer_param_ident, ident "handleNumber")))
         )
     )
 
@@ -423,14 +433,7 @@ macro tokens*(tks: untyped) =
         newNimNode(nnkOfBranch).add(
             newLit('\"'),
             newLit('\''),
-            newNimNode(nnkStmtList).add(
-                newNimNode(nnkCall).add(
-                    newNimNode(nnkDotExpr).add(
-                        newIdentNode(lexer_param_ident),
-                        newIdentNode("handleString")
-                    )
-                )
-            )
+            newStmtList(newCall(newDotExpr(ident lexer_param_ident, ident "handleString")))
         )
     )
 
@@ -440,107 +443,158 @@ macro tokens*(tks: untyped) =
     mainCaseStatements.add(
         newNimNode(nnkOfBranch).add(
             newNimNode(nnkInfix).add(
-                newIdentNode(".."),
+                ident(".."),
                 newLit('a'),
                 newLit('z')
             ),
             newNimNode(nnkInfix).add(
-                newIdentNode(".."),
+                ident(".."),
                 newLit('A'),
                 newLit('Z')
             ),
-            newNimNode(nnkStmtList).add(
-                newNimNode(nnkCall).add(
-                    newNimNode(nnkDotExpr).add(
-                        newIdentNode(lexer_param_ident),
-                        newIdentNode("handleIdent")
-                    )
-                )
-            )
+            newStmtList(newCall(newDotExpr(ident(lexer_param_ident), ident "handleIdent")))
         )
     )
 
     # Add to Main Case Statement char-based tokens
     for caseChar in caseCharTokens:
         let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseChar.tokToken)
-        mainCaseStatements.add(
-            newNimNode(nnkOfBranch).add(
-                newLit(caseChar.charToken),
-                newNimNode(nnkCall).add(
-                    newNimNode(nnkDotExpr).add(
-                        newIdentNode(lexer_param_ident),
-                        newIdentNode("setToken")
-                    ),
-                    newIdentNode(tokTokenStr),
-                    newLit(1)                           # char token offset in lex.bufpos
+        var charVariants = nnkStmtList.newTree()
+        if variants.hasKey(caseChar.charToken):
+            var variantConditional = nnkIfStmt.newTree()
+            for currentVariant in mitems(variants[caseChar.charToken]):
+                currentVariant.chartk.delete(0) # delete first char as we already have it as ``caseChar
+                for currChar in currentVariant.chartk:
+                    variantConditional.add(
+                        nnkElifBranch.newTree(
+                            newCall(ident "next", ident "lex", newLit(currChar)),
+                            newStmtList(
+                                newCall(
+                                    ident "setToken",
+                                    ident "lex",
+                                    ident toUpperAscii(tkPrefix.strVal & currentVariant.tok)
+                                )
+                            )
+                        )
+                    )
+            variants.del(caseChar.charToken) # delete from variants Table
+            variantConditional.add(
+                nnkElse.newTree(
+                    newCall(
+                        newDotExpr(ident lexer_param_ident, ident "setToken"),
+                        ident tokTokenStr,
+                        newLit(1)                           # char token offset in lex.bufpos
+                    )
                 )
             )
-        )
+            charVariants.add(variantConditional)
+            mainCaseStatements.add(
+                nnkOfBranch.newTree(
+                    newLit(caseChar.charToken),
+                    charVariants
+                )
+            )
+        else:
+            mainCaseStatements.add(
+                nnkOfBranch.newTree(
+                    newLit(caseChar.charToken),
+                    newCall(
+                        newDotExpr(ident lexer_param_ident, ident "setToken"),
+                        ident tokTokenStr,
+                        newLit(1)                           # char token offset in lex.bufpos
+                    )
+                )
+            )
 
+    if variants.len != 0:
+        ## add the rest of variants
+        var charVariants = nnkStmtList.newTree()
+        var variantConditional = nnkIfStmt.newTree()
+        for charKey, variant in mpairs(variants):
+            var chartok: string
+            var charsetstring: string
+            for currCharSet in mitems(variant):
+                currCharSet.chartk.delete(0)
+                chartok = currCharSet.tok
+                for currChar in currCharSet.chartk:
+                    charsetstring.add currChar
+            variantConditional.add(
+                nnkElifBranch.newTree(
+                    newCall(ident "next", ident "lex", newLit(charsetstring)),
+                    newStmtList(
+                        newCall(
+                            ident "setToken",
+                            ident "lex",
+                            ident toUpperAscii(tkPrefix.strVal & chartok),
+                            newLit(charsetstring.len + 1),
+                        )
+                    )
+                )
+            )
+            charVariants.add(variantConditional)
+            mainCaseStatements.add(
+                nnkOfBranch.newTree(
+                    newLit(charKey),
+                    charVariants
+                )
+            )
+        variants.clear()
+    
     mainCaseStatements.add(
-        newNimNode(nnkElse).add(
-            nnkStmtList.newTree(
-                nnkAsgn.newTree(
-                    nnkDotExpr.newTree(
-                        newIdentNode(lexer_param_ident),
-                        newIdentNode("kind")
-                    ),
-                    newIdentNode(tkUnknown)
+        nnkElse.newTree(
+            newStmtList(
+                newAssignment(
+                    newDotExpr(ident lexer_param_ident, ident "kind"),
+                    ident(tkUnknown)
                 )
             )
         )
     )
 
     # Create a public procedure that retrieves token one by one.
-    # This proc should be used in the main while iteration inside your parser:
+    # This proc should be used while you parse for tokens
     # proc getToken*[T: Lexer](lex: var T): TokenTuple =
     result.add(
         nnkProcDef.newTree(
             nnkPostfix.newTree(
-                newIdentNode("*"),
-                newIdentNode("getToken")
+                ident "*",
+                ident "getToken"
             ),
             newEmptyNode(),
             nnkGenericParams.newTree(
                 nnkIdentDefs.newTree(
-                    newIdentNode("T"),
-                    newIdentNode("Lexer"),
+                    ident "T",
+                    ident "Lexer",
                     newEmptyNode()
                 )
             ),
             nnkFormalParams.newTree(
-                newIdentNode(token_tuple_ident),
+                ident token_tuple_ident,
                 nnkIdentDefs.newTree(
-                    newIdentNode(lexer_param_ident),
+                    ident lexer_param_ident,
                     nnkVarTy.newTree(
-                        newIdentNode("T")
+                        ident "T"
                     ),
                     newEmptyNode()
                 )
             ),
             newEmptyNode(),
             newEmptyNode(),
-            nnkStmtList.newTree(
+            newStmtList(
                 # lex.startPos = lex.getColNumber(lex.bufpos)
-                nnkAsgn.newTree(
-                    nnkDotExpr.newTree(
-                        newIdentNode(lexer_param_ident),
-                        newIdentNode("kind")
-                    ),
-                    newIdentNode(tkUnknown)
+                newAssignment(
+                    newDotExpr(ident lexer_param_ident, ident "kind"),
+                    ident(tkUnknown)
                 ),
                 # setLen(lex.token, 0)
-                nnkCall.newTree(
-                    newIdentNode("setLen"),
-                    nnkDotExpr.newTree(
-                        newIdentNode(lexer_param_ident),
-                        newIdentNode("token")
-                    ),
+                newCall(
+                    ident "setLen",
+                    newDotExpr(ident lexer_param_ident, ident "token"),
                     newLit(0)
                 ),
                 nnkCommand.newTree(
-                    newIdentNode("skip"),
-                    newIdentNode(lexer_param_ident)
+                    ident "skip",
+                    ident lexer_param_ident
                 ),
 
                 # Unpack collected case statements for char, string, and int-based tokens
@@ -549,56 +603,40 @@ macro tokens*(tks: untyped) =
                 nnkIfStmt.newTree(
                     nnkElifBranch.newTree(
                         nnkInfix.newTree(
-                            newIdentNode("=="),
-                            nnkDotExpr.newTree(newIdentNode("lex"), newIdentNode("kind")),
-                            newIdentNode(tkUnknown)
+                            ident("=="),
+                            newDotExpr(ident "lex", ident "kind"),
+                            ident(tkUnknown)
                         ),
-                        nnkStmtList.newTree(
-                            nnkCall.newTree(
-                                nnkDotExpr.newTree(newIdentNode("lex"), newIdentNode("setError")),
-                                newLit("Unrecognized character")
+                        newStmtList(
+                            newCall(
+                                newDotExpr(ident "lex", ident "setError"),
+                                newLit("Unrecognized character") # throws ``Unrecognized char`` for unknown tokens
                             )
                         )
                     )
                 ),
-               
-                nnkAsgn.newTree(
-                    newIdentNode("result"),
+                newAssignment(
+                    ident "result",
                     nnkTupleConstr.newTree(
                         nnkExprColonExpr.newTree(
-                            newIdentNode("kind"),
-                            nnkDotExpr.newTree(
-                                newIdentNode(lexer_param_ident),
-                                newIdentNode("kind")
-                            )
+                            ident "kind",
+                            newDotExpr(ident lexer_param_ident, ident "kind")
                         ),
                         nnkExprColonExpr.newTree(
-                            newIdentNode("value"),
-                            nnkDotExpr.newTree(
-                                newIdentNode(lexer_param_ident),
-                                newIdentNode("token")
-                            )
+                            ident "value",
+                            newDotExpr(ident lexer_param_ident, ident "token")
                         ),
                         nnkExprColonExpr.newTree(
-                            newIdentNode("wsno"),
-                            nnkDotExpr.newTree(
-                                newIdentNode(lexer_param_ident),
-                                newIdentNode("wsno")
-                            )
+                            ident "wsno",
+                            newDotExpr(ident lexer_param_ident, ident "wsno")
                         ),
                         nnkExprColonExpr.newTree(
-                            newIdentNode("col"),
-                            nnkDotExpr.newTree(
-                                newIdentNode(lexer_param_ident),
-                                newIdentNode("startPos")
-                            )
+                            ident "col",
+                            newDotExpr(ident lexer_param_ident, ident "startPos")
                         ),
                         nnkExprColonExpr.newTree(
-                            newIdentNode("line"),
-                            nnkDotExpr.newTree(
-                                newIdentNode(lexer_param_ident),
-                                newIdentNode("lineNumber")
-                            )
+                            ident "line",
+                            newDotExpr(ident lexer_param_ident, ident "lineNumber")
                         )
                     )
                 )
