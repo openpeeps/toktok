@@ -1,5 +1,4 @@
 from std/strutils import Whitespace
-from std/sequtils import toSeq
 
 proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
     ## Initialize a new BaseLexer instance with given Stream
@@ -9,7 +8,7 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
     lex.kind = TK_UNKNOWN
     lex.token = ""
     lex.error = ""
-    return lex
+    result = lex
 
 const numbers = {'0'..'9'}
 const azAZ = {'a'..'z', 'A'..'Z', '_', '-'}
@@ -118,8 +117,10 @@ proc next[T: Lexer](lex: var T, chars:string): bool =
     ## without modifying current buffer pos
     var i = 1
     var status = false
-    for c in chars.toSeq():
+    for c in chars:
         status = lex.next(c, i)
+        if status == false:
+            return status
         inc i
     result = status
 

@@ -461,22 +461,29 @@ macro tokens*(tks: untyped) =
         let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseChar.tokToken)
         var charVariants = nnkStmtList.newTree()
         if variants.hasKey(caseChar.charToken):
+            # echo caseChar
             var variantConditional = nnkIfStmt.newTree()
             for currentVariant in mitems(variants[caseChar.charToken]):
-                currentVariant.chartk.delete(0) # delete first char as we already have it as ``caseChar
+                var chartok: string
+                var charsetstring: string
+                currentVariant.chartk.delete(0) # delete first char as we already have it as ``caseChar``
                 for currChar in currentVariant.chartk:
-                    variantConditional.add(
-                        nnkElifBranch.newTree(
-                            newCall(ident "next", ident "lex", newLit(currChar)),
-                            newStmtList(
-                                newCall(
-                                    ident "setToken",
-                                    ident "lex",
-                                    ident toUpperAscii(tkPrefix.strVal & currentVariant.tok)
-                                )
+                    # collect char by char and create a string
+                    # to check if next token is as ``lex.next("mystring")``
+                    charsetstring.add currChar
+                variantConditional.add(
+                    nnkElifBranch.newTree(
+                        newCall(ident "next", ident "lex", newLit(charsetstring)),
+                        newStmtList(
+                            newCall(
+                                ident "setToken",
+                                ident "lex",
+                                ident toUpperAscii(tkPrefix.strVal & currentVariant.tok),
+                                newLit(charsetstring.len + 1)
                             )
                         )
                     )
+                )
             variants.del(caseChar.charToken) # delete from variants Table
             variantConditional.add(
                 nnkElse.newTree(
@@ -539,13 +546,15 @@ macro tokens*(tks: untyped) =
                 )
             )
         variants.clear()
+    # echo mainCaseStatements.astGenRepr
     
     mainCaseStatements.add(
         nnkElse.newTree(
             newStmtList(
-                newAssignment(
-                    newDotExpr(ident lexer_param_ident, ident "kind"),
-                    ident(tkUnknown)
+                newCall(
+                    ident "setToken",
+                    ident "lex",
+                    ident tkUnknown
                 )
             )
         )
