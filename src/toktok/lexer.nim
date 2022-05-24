@@ -80,6 +80,7 @@ macro tokens*(tks: untyped) =
     enumTokensNode.add(ident(toUpperAscii(tkInt)))
     enumTokensNode.add(ident(toUpperAscii(tkString)))
     
+    var specialIdents: seq[tuple[chartk: char, tok: string]]
     var variants: Table[char, seq[tuple[chartk: seq[char], tok: string]]]
 
     for tk in tks:
@@ -149,6 +150,10 @@ macro tokens*(tks: untyped) =
                     if prefPromptTokens == true:
                         echo "\n  Token:", indent(tokToken, 7), "\n  Keyword:", indent($charToken, 5)
                     caseCharTokens.add((charToken: charToken, tokToken: tokToken))
+                elif tk[2].kind == nnkCall:
+                    if tk[2][0].strVal == "identWith":
+                        specialIdents.add (chartk: char(tk[2][1].intVal), tok: tokToken)
+                else: discard # TODO raise error
         else: discard   # TODO raise error
 
     # add TK_EOF at the end
@@ -455,7 +460,7 @@ macro tokens*(tks: untyped) =
             newStmtList(newCall(newDotExpr(ident(lexer_param_ident), ident "handleIdent")))
         )
     )
-
+    
     # Add to Main Case Statement char-based tokens
     for caseChar in caseCharTokens:
         let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseChar.tokToken)
@@ -513,6 +518,18 @@ macro tokens*(tks: untyped) =
                 )
             )
 
+    if specialIdents.len != 0:
+        for specialIdent in specialIdents:
+            mainCaseStatements.add(
+                nnkOfBranch.newTree(
+                    newLit(specialIdent.chartk),
+                    newCall(
+                        newDotExpr(ident lexer_param_ident, ident "handleIdentWith"),
+                        ident toUpperAscii(tkPrefix.strVal & specialIdent.tok)
+                    )
+                )
+            )
+
     if variants.len != 0:
         ## add the rest of variants
         var charVariants = nnkStmtList.newTree()
@@ -546,7 +563,6 @@ macro tokens*(tks: untyped) =
                 )
             )
         variants.clear()
-    # echo mainCaseStatements.astGenRepr
     
     mainCaseStatements.add(
         nnkElse.newTree(

@@ -189,6 +189,22 @@ proc handleString[T: Lexer](lex: var T) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
 
+proc handleIdentWith[T: Lexer](lex: var T, kind: TokenKind) =
+    ## Handle variable declarations based the following char sets
+    ## ``{'a'..'z', 'A'..'Z', '_', '-'}`` and ``{'0'..'9'}``
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    setLen(lex.token, 0)
+    inc lex.bufpos
+    while true:
+        if lex.hasLetters(lex.bufpos):
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+        elif lex.hasNumbers(lex.bufpos):
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+        else: break
+    lex.setToken(TK_VARIABLE)
+
 template handleIdent[T: Lexer](lex: var T) =
     ## Template to handle string-based identifiers
     lex.startPos = lex.getColNumber(lex.bufpos)
