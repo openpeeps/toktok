@@ -203,7 +203,7 @@ proc handleIdentWith[T: Lexer](lex: var T, kind: TokenKind) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
         else: break
-    lex.setToken(TK_VARIABLE)
+    lex.setToken kind
 
 template handleIdent[T: Lexer](lex: var T) =
     ## Template to handle string-based identifiers
