@@ -83,6 +83,23 @@ proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
             inc lex.bufpos
     result = (pos: lex.bufpos, token: lex.token)
 
+proc handleSpecial[T: Lexer](lex: var T): char =
+    ## Procedure for for handling special escaping tokens
+    assert lex.buf[lex.bufpos] == '\\'
+    inc lex.bufpos
+    case lex.buf[lex.bufpos]
+    of 'n':
+        lex.token.add "\\n"
+        result = '\n'
+        inc lex.bufpos
+    of '\\':
+        lex.token.add "\\\\"
+        result = '\\'
+        inc lex.bufpos
+    else:
+        lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
+        result = '\0'
+
 proc nextToSpec[L: Lexer](lex: var L, endChar: char, tokenKind: TokenKind) =
     ## Handle string values wrapped in single or double quotes
     lex.startPos = lex.getColNumber(lex.bufpos)
@@ -147,23 +164,6 @@ template handleNumber[T: Lexer](lex: var T) =
             return
         else: break
     lex.kind = TK_INTEGER
-
-proc handleSpecial[T: Lexer](lex: var T): char =
-    ## Procedure for for handling special escaping tokens
-    assert lex.buf[lex.bufpos] == '\\'
-    inc lex.bufpos
-    case lex.buf[lex.bufpos]
-    of 'n':
-        lex.token.add "\\n"
-        result = '\n'
-        inc lex.bufpos
-    of '\\':
-        lex.token.add "\\\\"
-        result = '\\'
-        inc lex.bufpos
-    else:
-        lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
-        result = '\0'
 
 proc handleString[T: Lexer](lex: var T) =
     ## Handle string values wrapped in single or double quotes
