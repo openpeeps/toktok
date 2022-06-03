@@ -1,3 +1,9 @@
+# TokTok, Generic tokenizer written in Nim language. Powered by Nim's Macros.
+#
+# (c) 2021 TokTok is released under MIT License
+#          George Lemon | Made by Humans from OpenPeep
+#          https://github.com/openpeep/toktok
+
 import std/[lexbase, streams, macros, tables]
 from std/strutils import `%`, replace, indent, toUpperAscii, startsWith
 
@@ -20,33 +26,38 @@ let
     token_tuple_ident {.compileTime.} = "TokenTuple"
     tkPrefix {.compileTime.} = newLit("tk_")
     tkUnknown {.compileTime.} = "TK_UNKNOWN"
-    tkIdentifier {.compileTime.} = "TK_IDENTIFIER"
     tkEOF {.compileTime.} = "TK_EOF"
     tkInt {.compileTime.} = "TK_INTEGER"
     tkString {.compileTime.} = "TK_STRING"
 
 var 
+    tkIdentifier {.compileTime.} = "TK_IDENTIFIER"
     prefIncludeWhitespaces {.compileTime.} = false
     prefPromptTokens {.compileTime.} = false
     prefPrefixTokens {.compileTime.} = "TK_"
     prefUppercaseTokens {.compileTime.} = true
 
 macro toktokSettings*(
-    includeWhitespaces, promptTokens, uppercaseTokens: static bool,
-    prefixTokens: static string) =
-    # whether to list tokens on compile time via cli
-    prefPromptTokens = promptTokens
-    # tokenize whitespaces or count as integer
-    prefIncludeWhitespaces = includeWhitespaces
-    # add a prefix 
-    prefPrefixTokens = prefixTokens
-    # transform tokens to uppercaseAscii
-    prefUppercaseTokens = uppercaseTokens
+    includeWhitespaces,
+    uppercaseTokens = true,
+    promptTokens = false,
+    prefix = "TK_",
+    defaultTkIdent = "TK_IDENTIFIER"
+) =
+    prefPromptTokens = promptTokens.boolVal
+        # whether to list tokens on compile time via cli
+    prefIncludeWhitespaces = includeWhitespaces.boolVal
+        # tokenize whitespaces or count as integer
+    prefPrefixTokens = prefix.strVal
+        # add a prefix 
+    prefUppercaseTokens = uppercaseTokens.boolVal
+        # transform tokens to uppercaseAscii
+    tkIdentifier = defaultTkIdent.strVal
 
 # dumpAstGen:
 #     case ok:
 #     of '@':
-#         if next(lex, "asadsa"):
+#         if next(lex, 'a') and next(lex, 'b') and next(lex, 'c'):
 #             setToken(lex, TK_IMPORT, 2)
 
 macro tokens*(tks: untyped) =
@@ -84,11 +95,25 @@ macro tokens*(tks: untyped) =
     var variants: Table[char, seq[tuple[chartk: seq[char], tok: string]]]
 
     for tk in tks:
-        # tk.expectKind(nnkIdent)
         if tk.kind == nnkIdent:
+            # Handle token names without values
             tkIdent = ident(toUpperAscii(tkPrefix.strVal & tk.strVal))
             enumTokensNode.add(tkIdent)
         elif tk.kind == nnkInfix:
+            if tk.len == 4:
+                # Handle variants of tokens
+                tk[3].expectKind(nnkStmtList)
+                for infixVariant in tk[3]:
+                    infixVariant[0].expectKind(nnkIdent)
+                    infixVariant[1].expectKind(nnkIdent)
+                    echo infixVariant[1].strVal
+                # for id in tk[3][0]:
+                #     if id.kind == nnkIdent:
+                #         echo id.strVal
+
+                # for tkVariantIdent in tk[3][0][2]:
+                #     echo char(tkVariantIdent.intVal)
+
             tkIdent = ident(toUpperAscii(tkPrefix.strVal & tk[1].strVal))
             enumTokensNode.add(tkIdent)
             if tk[2].kind == nnkStrLit:
@@ -103,7 +128,7 @@ macro tokens*(tks: untyped) =
                         if altKey.kind == nnkStrLit:
                             caseStrTokens.add((strToken: altKey.strVal, tokToken: tk[1].strVal))
                         else:
-                            caseCharTokens.add((charToken: char(altKey.intval), tokToken: tk[1].strVal))
+                            caseCharTokens.add((charToken: char(altKey.intVal), tokToken: tk[1].strVal))
                             # echo altKey.kind
             elif tk[2].kind == nnkInfix:
                 # let infixStr = tk[2][0].strVal
@@ -128,7 +153,6 @@ macro tokens*(tks: untyped) =
                                     rangeEnd: (charToken: char(tk[2][2].intVal), tokToken: tk[1].strVal)
                                 )
                         else: discard # TODO raise error
-
             else:
                 let tokToken = tk[1].strVal
                 if tk[2].kind == nnkTupleConstr:
@@ -378,7 +402,7 @@ macro tokens*(tks: untyped) =
     
     strBasedCaseStatement.add(
         newNimNode(nnkElse).add(
-            newNimNode(nnkStmtList).add(ident("TK_IDENTIFIER"))
+            newNimNode(nnkStmtList).add(tkIdent)
         )
     )
 
@@ -465,8 +489,8 @@ macro tokens*(tks: untyped) =
     for caseChar in caseCharTokens:
         let tokTokenStr = toUpperAscii(tkPrefix.strVal & caseChar.tokToken)
         var charVariants = nnkStmtList.newTree()
+        # echo variants
         if variants.hasKey(caseChar.charToken):
-            # echo caseChar
             var variantConditional = nnkIfStmt.newTree()
             for currentVariant in mitems(variants[caseChar.charToken]):
                 var chartok: string
