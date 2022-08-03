@@ -182,8 +182,8 @@ proc handleString[T: Lexer](lex: var T) =
             break
         of NewLines:
             if lex.allowMultilineStrings:
-                add lex.token, lex.buf[lex.bufpos]
                 inc lex.bufpos
+                continue
             else:
                 lex.setError("EOL reached before end of string")
                 return
