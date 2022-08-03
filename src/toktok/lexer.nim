@@ -233,6 +233,7 @@ macro tokens*(tks: untyped) =
         (key: "error", fType: "string"),
         (key: "startPos", fType: "int"),
         (key: "wsno", fType: "int"),
+        (key: "allowMultilineStrings", ftype: "bool")
     ]
 
     var objectFields = nnkRecList.newTree()
