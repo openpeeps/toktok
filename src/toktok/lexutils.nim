@@ -1,6 +1,6 @@
 from std/strutils import Whitespace
 
-proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
+proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrings = false): Lexer =
     ## Initialize a new BaseLexer instance with given Stream
     var lex = Lexer()
     open(lex, newStringStream(fileContents))
@@ -8,6 +8,7 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
     lex.kind = TK_UNKNOWN
     lex.token = ""
     lex.error = ""
+    lex.allowMultilineStrings = allowMultilineStrings
     result = lex
 
 const numbers = {'0'..'9'}
@@ -180,8 +181,12 @@ proc handleString[T: Lexer](lex: var T) =
             inc lex.bufpos
             break
         of NewLines:
-            lex.setError("EOL reached before end of string")
-            return
+            if lex.allowMultilineStrings:
+                add lex.token, lex.buf[lex.bufpos]
+                inc lex.bufpos
+            else:
+                lex.setError("EOL reached before end of string")
+                return
         of EndOfFile:
             lex.setError("EOF reached before end of string")
             return
