@@ -6,6 +6,7 @@
 #          https://github.com/openpeep/toktok
 
 import std/[lexbase, streams, macros, tables]
+from std/algorithm import reversed
 from std/strutils import `%`, replace, indent, toUpperAscii, startsWith
 export lexbase, streams
 
@@ -179,9 +180,9 @@ proc createCaseStmt(): NimNode =
                         )
                 ))
             elif tk.tokenType == TType.TVariant:
-                var i = 2
                 var varBranches = nnkIfStmt.newTree()
-                for variant in tk.variants:
+                var i = tk.variants.len + 1
+                for variant in reversed(tk.variants):
                     varBranches.add(
                         nnkElifBranch.newTree(
                             nnkCall.newTree(
@@ -199,7 +200,7 @@ proc createCaseStmt(): NimNode =
                                 ),
                             )
                         ))
-                    inc i
+                    dec i
                 varBranches.add(
                     nnkElse.newTree(
                         newStmtList(
