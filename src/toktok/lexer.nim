@@ -7,22 +7,23 @@
 
 import std/[lexbase, streams, macros, tables]
 from std/strutils import `%`, replace, indent, toUpperAscii, startsWith
-
 export lexbase, streams
 
 var tkIdentDefault {.compileTime.} = "Identifier"
 var tkPrefix {.compileTime.} = "Tk_"
 var tkUnknown {.compileTime.} = "Unknown"
 var tkEof {.compileTime.} = "Eof"
+var tkInteger {.compileTime.} = "Integer"
+var tkString {.compileTime.} = "String"
 
-import ./macroutils
-
-#
-# Compile Time API
-#
+include ./macroutils
 
 type
+    TType = enum
+        Single, CharRange, Char2EndOfLine
+
     CurrentToken* = object
+        tokenType: TType
         key: NimNode
         case valueKind: NimNodeKind
             of nnkCharLit:
@@ -75,11 +76,21 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
         valueKind: tk[2].kind
     )
 
-    if tk[2].kind == nnkCharLit:
-        curr.charv = char(tk[2].intVal)
-    elif tk[2].kind == nnkStrLit:
-        curr.strv = tk[2].strVal
-
+    if tk[2].len == 3:
+        if eqIdent(tk[2][0], ".."):
+            # handle range-based tokens, for example `#` .. EndOfLine
+            if tk[2][2].kind == nnkIdent and tk[2][2].strVal == "EOL":
+                curr.tokenType = TType.Char2EndOfLine
+        curr.valueKind = tk[2][1].kind
+        if tk[2][1].kind == nnkCharLit:
+            curr.charv = char(tk[2][1].intVal)
+        elif tk[2][1].kind == nnkStrLit:
+            curr.strv = tk[2][1].strVal
+    else:
+        if tk[2].kind == nnkCharLit:
+            curr.charv = char(tk[2].intVal)
+        elif tk[2].kind == nnkStrLit:
+            curr.strv = tk[2].strVal
     addToken tk[1], curr
 
 template parseToken() =
@@ -94,10 +105,10 @@ template parseToken() =
 proc createTokenKindEnum(): NimNode {.compileTime.} =
     ## Generates the `TokenKind` enumeration
     var enumTokens: seq[NimNode]
-    enumTokens.add getIdent("Integer")
-    enumTokens.add getIdent("String")
+    enumTokens.add getIdent(tkInteger)
+    enumTokens.add getIdent(tkString)
     enumTokens.add getIdent(tkIdentDefault)
-    enumTokens.add getIdent("Eof")
+    enumTokens.add getIdent(tkEof)
     for tkKey, tkObject in pairs(Program.tokens):
         enumTokens.add(tkObject.key)
     result = newEnum(
@@ -117,14 +128,28 @@ proc createCaseStmt(): NimNode =
     var branches: seq[tuple[cond, body: NimNode]]
     for k, tk in pairs(Program.tokens):
         if tk.valueKind == nnkCharLit:
-            branches.add((
-                cond: newLit(tk.charv),
-                body: newCall(
-                    newDotExpr(ident("lex"), ident("setToken")),
-                    tk.key,
-                    newLit(1)
-                )
-            ))
+            if tk.tokenType == TType.Single:
+                branches.add((
+                    cond: newLit(tk.charv),
+                    body: newCall(
+                        newDotExpr(ident("lex"), ident("setToken")),
+                        tk.key,
+                        newLit(1)
+                    )
+                ))
+            elif tk.tokenType == TType.Char2EndOfLine:
+                branches.add((
+                    cond: newLit(tk.charv),
+                    body:
+                        nnkCall.newTree(
+                            newDotExpr(ident "lex", ident "setToken"),
+                            tk.key,
+                            newDotExpr(
+                                newCall(newDotExpr(ident "lex", ident "nextToEOL")),
+                                ident "pos"
+                            ),
+                        )
+                ))
         else: continue
 
     branches.add((

@@ -16,6 +16,7 @@ when isMainModule:
         Minus      > '-'
         Multi      > '*'
         Div        > '/'
+        Comment    > '#' .. EOL
         Assign     > '='
         Var        > "var"
         Let        > "let"

@@ -1,5 +1,3 @@
-import std/macros
-
 type openArrayParams* = openarray[tuple[k,t: string]]
 
 proc newImport*(id: string): NimNode =
