@@ -15,9 +15,9 @@ when isMainModule:
         # Plus       > '+'
         # Minus      > '-'
         # Multi      > '*'
-        Div        > '/':
-            AltCom > '/'
-            Brah   > '/'
+        Not       > '!':
+            Neq      > '='
+            Sneq     > '='
         Comment    > '#' .. EOL
         # Assign     > '='
         # String     > '"' @ handleString

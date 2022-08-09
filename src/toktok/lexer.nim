@@ -6,8 +6,9 @@
 #          https://github.com/openpeep/toktok
 
 import std/[lexbase, streams, macros, tables]
+from std/sequtils import map
 from std/algorithm import reversed
-from std/strutils import `%`, replace, indent, toUpperAscii, startsWith
+from std/strutils import `%`, replace, indent, toUpperAscii, startsWith, join
 export lexbase, streams
 
 var tkIdentDefault {.compileTime.} = "Identifier"
@@ -182,25 +183,29 @@ proc createCaseStmt(): NimNode =
             elif tk.tokenType == TType.TVariant:
                 var varBranches = nnkIfStmt.newTree()
                 var i = tk.variants.len + 1
-                for variant in reversed(tk.variants):
+
+                var ifInfix = newEmptyNode()
+                var allChars = tk.variants
+                for v in reversed(tk.variants):
+                    let chars = map(allChars, proc(x: tuple[charv: char, key: NimNode]): string = $x.charv)
+                    discard allChars.pop()
                     varBranches.add(
                         nnkElifBranch.newTree(
                             nnkCall.newTree(
-                                ident("next"),
-                                ident("lex"),
-                                newLit(variant.charv)
+                                ident "next", ident "lex", newLit(chars.join())
                             ),
                             newStmtList(
                                 nnkCall.newTree(
-                                    ident("setTokenMulti"),
-                                    ident("lex"),
-                                    variant.key,
-                                    newLit(i),
-                                    newLit(i)
-                                ),
+                                    ident "setTokenMulti",
+                                    ident "lex",
+                                    v.key,
+                                    newLit(chars.len + 1),
+                                    newLit(chars.len + 1)
+                                )
                             )
-                        ))
-                    dec i
+                        )
+                    )
+
                 varBranches.add(
                     nnkElse.newTree(
                         newStmtList(
@@ -209,7 +214,6 @@ proc createCaseStmt(): NimNode =
                             )
                         )
                 )
-
                 branches.add((
                     cond: newLit(tk.charv),
                     body: varBranches
