@@ -4,7 +4,7 @@
 #          George Lemon | Made by Humans from OpenPeep
 #          https://github.com/openpeep/toktok
 
-from std/strutils import Whitespace
+from std/strutils import Whitespace, `%`
 
 proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrings = false): Lexer =
     ## Initialize a new BaseLexer instance with given Stream
@@ -29,9 +29,9 @@ proc hasError*[L: Lexer](lexer: L): bool {.inline.} =
     ## Determine if Lexer has any errors
     result = lexer.error.len != 0
 
-proc getError*[L: Lexer](lexer: L): string {.inline.} =
+proc getError*[L: Lexer](lex: L): string {.inline.} =
     ## Retrieve error message from Lexer object
-    result = lexer.error
+    result = "($1:$2) $3" % [$lex.lineNumber, $(lex.startPos + 1), lex.error]
 
 proc handleNewLine[T: Lexer](lex: var T) =
     ## Handle new lines
@@ -80,6 +80,8 @@ template setTokenMulti[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, m
 proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
     ## Get entire buffer starting from given position to the end of line
     inc lex.bufpos
+    let wsno = lex.wsno
+    let col = lex.getColNumber(lex.bufpos)  # TODO keep initial start position
     skip lex
     while true:
         case lex.buf[lex.bufpos]:
@@ -88,6 +90,8 @@ proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
         else: 
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
+    lex.wsno = wsno
+    lex.startPos = col
     result = (pos: lex.bufpos, token: lex.token)
 
 proc handleSpecial[T: Lexer](lex: var T): char =
@@ -166,7 +170,7 @@ template handleNumber[T: Lexer](lex: var T) =
                 setLen(lex.token, 0)
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
-        of 'a'..'z', 'A'..'Z', '_':
+        of 'a'..'z', 'A'..'Z', '_', '-':
             lex.setError("Invalid number")
             return
         else: break

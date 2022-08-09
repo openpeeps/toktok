@@ -12,16 +12,19 @@ when isMainModule:
         Program.settings(true, "Tk_")
 
     tokens:
-        Plus       > '+'
-        Minus      > '-'
-        Multi      > '*'
-        Div        > '/'
+        # Plus       > '+'
+        # Minus      > '-'
+        # Multi      > '*'
+        Div        > '/':
+            AltCom > '/'
+            Brah   > '/'
         Comment    > '#' .. EOL
-        Assign     > '='
-        Var        > "var"
-        Let        > "let"
-        Const      > "const"
-        Class      > "class"
+        # Assign     > '='
+        # String     > '"' @ handleString
+        # Var        > "var"
+        # Let        > "let"
+        # Const      > "const"
+        # Class      > "class"
         # Bool_True  > @["TRUE", "True", "true", "YES", "Yes", "yes", "y"]
         # Bool_False > @["FALSE", "False", "false", "NO", "No", "no", "n"]
 
@@ -31,3 +34,6 @@ when isMainModule:
         current = lex.getToken()
         if current.kind == TK_EOF: break
         echo current
+
+    if lex.hasError:
+        echo lex.getError()
