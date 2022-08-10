@@ -96,7 +96,6 @@ proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
 
 proc handleSpecial[T: Lexer](lex: var T): char =
     ## Procedure for for handling special escaping tokens
-    assert lex.buf[lex.bufpos] == '\\'
     inc lex.bufpos
     case lex.buf[lex.bufpos]
     of 'n':
@@ -186,7 +185,7 @@ proc handleString[T: Lexer](lex: var T) =
         of '\\':
             discard lex.handleSpecial()
             if lex.hasError(): return
-        of '"':
+        of '"', '\'':
             lex.kind = TK_STRING
             inc lex.bufpos
             break

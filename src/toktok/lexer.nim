@@ -78,6 +78,9 @@ template setInfixToken() =
         curr.charv = char(tk[2].intVal)
     elif tk[2].kind == nnkStrLit:
         curr.strv = tk[2].strVal
+    elif tk[2].kind == nnkCurly:
+        # handle sets todo
+        discard
 
 template setInfixTokenRange() =
     if eqIdent(tk[2][0], ".."):
@@ -111,6 +114,7 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
         key: tkInfixIdent.getIdent(),
         valueKind: tk[2].kind
     )
+
     if tk.len == 4:
         expectKind tk[3], nnkStmtList
         setInfixTokenVariants()
@@ -234,6 +238,15 @@ proc createCaseStmt(): NimNode =
         # {'0'..'9'}
         cond: nnkCurly.newTree(newTree(nnkInfix, ident(".."), newLit('0'), newLit('9'))),
         body: newStmtList(newCall newDotExpr(ident "lex", ident "handleNumber"))
+    ))
+
+    branches.add((
+        cond: newLit('\''),
+        body: newStmtList(newCall newDotExpr(ident "lex", ident "handleString"))
+    ))
+    branches.add((
+        cond: newLit('\"'),
+        body: newStmtList(newCall newDotExpr(ident "lex", ident "handleString"))
     ))
 
     branches.add((

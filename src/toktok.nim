@@ -12,20 +12,24 @@ when isMainModule:
         Program.settings(true, "Tk_")
 
     tokens:
-        # Plus       > '+'
-        # Minus      > '-'
-        # Multi      > '*'
+        Plus       > '+':
+            Inc    > '+'
+        Minus      > '-':
+            Dec    > '-'
+        Multi      > '*'
         Not       > '!':
             Neq      > '='
             Sneq     > '='
         Comment    > '#' .. EOL
-        # Assign     > '='
+        Assign     > '=':
+            Eq     > '='
+            Seq    > '='
         # String     > '"' @ handleString
-        # Var        > "var"
-        # Let        > "let"
-        # Const      > "const"
-        # Class      > "class"
-        # Bool_True  > @["TRUE", "True", "true", "YES", "Yes", "yes", "y"]
+        Var        > "var"
+        Let        > "let"
+        Const      > "const"
+        Class      > "class"
+        Bool_True  > {"TRUE", "True", "true", "YES", "Yes", "yes", "y"}
         # Bool_False > @["FALSE", "False", "false", "NO", "No", "no", "n"]
 
     var lex = Lexer.init(readFile("sample"))
