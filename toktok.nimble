@@ -5,8 +5,6 @@ author        = "George Lemon"
 description   = "Generic tokenizer written in Nim language 👑 Powered by Nim's Macros"
 license       = "MIT"
 srcDir        = "src"
-binDir        = "bin"
-bin           = @["toktok"]
 
 # Dependencies
 
