@@ -14,7 +14,7 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrin
     lex.kind = TK_UNKNOWN
     lex.token = ""
     lex.error = ""
-    lex.allowMultilineStrings = allowMultilineStrings
+    lex.multilineStrings = allowMultilineStrings
     result = lex
 
 const numbers = {'0'..'9'}
@@ -31,7 +31,7 @@ proc hasError*[L: Lexer](lexer: L): bool {.inline.} =
 
 proc getError*[L: Lexer](lex: L): string {.inline.} =
     ## Retrieve error message from Lexer object
-    result = "($1:$2) $3" % [$lex.lineNumber, $(lex.startPos + 1), lex.error]
+    result = "($1:$2) $3" % [$lex.lineNumber, $(lex.startPos), lex.error]
 
 proc handleNewLine[T: Lexer](lex: var T) =
     ## Handle new lines
@@ -190,7 +190,7 @@ proc handleString[T: Lexer](lex: var T) =
             inc lex.bufpos
             break
         of NewLines:
-            if lex.allowMultilineStrings:
+            if lex.multilineStrings:
                 inc lex.bufpos
                 continue
             else:

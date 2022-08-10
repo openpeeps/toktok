@@ -24,22 +24,25 @@ type
     TType = enum
         TSingle, TRange, TCharToEndOfLine, TVariant
 
-    CurrentToken* = object
-        case tokenType: TType
-        of TVariant:
-            variants: seq[tuple[charv: char, key: NimNode]]
-        else: discard
+    TK* = object
         key: NimNode
+        case tokenType: TType
+            of TVariant:
+                variants: seq[tuple[charNode, key: NimNode]]
+            else: discard
         case valueKind: NimNodeKind
             of nnkCharLit:
-                charv: char
+                charNode: char
             of nnkStrLit:
                 strv: string
             else: discard
 
     CurrentProgram = object
-        preferences*: tuple[uppercase: bool, prefix: string]
-        tokens*: OrderedTable[string, CurrentToken]
+        preferences*: tuple[
+            uppercase: bool,
+            prefix: string
+        ]
+        tokens*: OrderedTable[string, TK]
 
 var Program* {.compileTime.} = CurrentProgram()
 
@@ -48,7 +51,7 @@ proc settings*(program: var CurrentProgram, uppercase: bool, prefix = tkPrefix) 
     ## change your program settings.
     program.preferences = (uppercase, prefix)
 
-proc addToken(tk: NimNode, currToken: CurrentToken) {.compileTime.} =
+proc addToken(tk: NimNode, currToken: TK) {.compileTime.} =
     ## Adds a new token
     Program.tokens[tk.strVal] = currToken
 
@@ -71,11 +74,11 @@ proc getDefaultIdent(): NimNode {.compileTime.} =
     result = tkUnknown.getIdent
 
 proc parseIdentToken(tk: NimNode) {.compileTime.} =
-    addToken tk, CurrentToken(key: tk.getIdent())
+    addToken tk, TK(key: tk.getIdent())
 
 template setInfixToken() =
     if tk[2].kind == nnkCharLit:
-        curr.charv = char(tk[2].intVal)
+        curr.charNode = char(tk[2].intVal)
     elif tk[2].kind == nnkStrLit:
         curr.strv = tk[2].strVal
     elif tk[2].kind == nnkCurly:
@@ -90,7 +93,7 @@ template setInfixTokenRange() =
     curr.valueKind = tk[2][1].kind
     if tk[2][1].kind == nnkCharLit:
         # handle char based tokens `!`, `+`
-        curr.charv = char(tk[2][1].intVal)
+        curr.charNode = char(tk[2][1].intVal)
     elif tk[2][1].kind == nnkStrLit:
         # handle string-based identifiers `a`..`Z`
         curr.strv = tk[2][1].strVal
@@ -101,17 +104,22 @@ template setInfixTokenVariants() =
     for variant in tk[3]:
         expectKind variant, nnkInfix
         expectKind variant[1], nnkIdent
-        expectKind variant[2], nnkCharLit
-        curr.variants.add (
-            charv: char(variant[2].intVal),
-            key: getIdent(variant[1])
-        )
+        if variant[2].kind == nnkCharLit:
+            curr.variants.add (
+                charNode: variant[2],
+                key: getIdent(variant[1])
+            )
+        elif variant[2].kind == nnkInfix:
+            curr.variants.add (
+                charNode: variant[2][2],
+                key: getIdent(variant[1])
+            )
 
 proc parseInfixToken(tk: NimNode) {.compileTime.} =
     let tkInfixIdent = tk[1]
     let tkInfixVal = tk[2]
-    var curr = CurrentToken(
-        key: tkInfixIdent.getIdent(),
+    var curr = TK(
+        key: getIdent tkInfixIdent,
         valueKind: tk[2].kind
     )
 
@@ -127,10 +135,9 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
 template parseToken() =
     case tk.kind:
     of nnkIdent:
-        # Parse token identifiers without values
-        parseIdentToken(tk)
+        parseIdentToken(tk)         # parse token indents without values
     of nnkInfix:
-        parseInfixToken(tk)
+        parseInfixToken(tk)         # parse token identifiers with values or variants
     else: discard
 
 proc createTokenKindEnum(): NimNode {.compileTime.} =
@@ -153,18 +160,12 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
     )
 
 proc createCaseStmt(): NimNode =
-    ## Create the main `case` statement that
-    ## handles all tokens based on their patterns.
-    ## ```
-    ## case token.value:
-    ## of '+': token.kind = TK_PLUS     
-    ## ```
     var branches: seq[tuple[cond, body: NimNode]]
     for k, tk in pairs(Program.tokens):
         if tk.valueKind == nnkCharLit:
             if tk.tokenType == TType.TSingle:
                 branches.add((
-                    cond: newLit(tk.charv),
+                    cond: newLit(tk.charNode),
                     body: newCall(
                         newDotExpr(ident("lex"), ident("setToken")),
                         tk.key,
@@ -173,7 +174,7 @@ proc createCaseStmt(): NimNode =
                 ))
             elif tk.tokenType == TType.TCharToEndOfLine:
                 branches.add((
-                    cond: newLit(tk.charv),
+                    cond: newLit(tk.charNode),
                     body:
                         nnkCall.newTree(
                             newDotExpr(ident "lex", ident "setToken"),
@@ -186,12 +187,16 @@ proc createCaseStmt(): NimNode =
                 ))
             elif tk.tokenType == TType.TVariant:
                 var varBranches = nnkIfStmt.newTree()
-                var i = tk.variants.len + 1
+                var i = tk.variants.len + 1 # including the default case
 
                 var ifInfix = newEmptyNode()
                 var allChars = tk.variants
                 for v in reversed(tk.variants):
-                    let chars = map(allChars, proc(x: tuple[charv: char, key: NimNode]): string = $x.charv)
+                    let chars = map(allChars,
+                        proc(x: tuple[charNode, key: NimNode]): string =
+                            if x.charNode.kind == nnkCharLit:
+                                return $(char(x.charNode.intVal))
+                        )
                     discard allChars.pop()
                     varBranches.add(
                         nnkElifBranch.newTree(
@@ -219,7 +224,7 @@ proc createCaseStmt(): NimNode =
                         )
                 )
                 branches.add((
-                    cond: newLit(tk.charv),
+                    cond: newLit(tk.charNode),
                     body: varBranches
                 ))
         else: continue
@@ -301,7 +306,7 @@ proc createStrBasedCaseStmt(): NimNode =
 macro tokens*(tks: untyped) =
     ## Generate tokens based on given identifiers
     ## and create the main `case statement` handler.
-    addToken getDefaultIdent(), CurrentToken(key: getDefaultIdent())
+    addToken getDefaultIdent(), TK(key: getDefaultIdent())
     var tkIdent = getDefaultIdent()
 
     expectKind tks, nnkStmtList
@@ -334,7 +339,7 @@ macro tokens*(tks: untyped) =
             ("error", "string"),
             ("startPos", "int"),
             ("wsno", "int"),
-            ("allowMultilineStrings", "bool")
+            ("multilineStrings", "bool")
         ]
     )
 
