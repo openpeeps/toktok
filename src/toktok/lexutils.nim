@@ -185,7 +185,7 @@ proc handleString[T: Lexer](lex: var T) =
         of '\\':
             discard lex.handleSpecial()
             if lex.hasError(): return
-        of '"', '\'':
+        of '"':
             lex.kind = TK_STRING
             inc lex.bufpos
             break
@@ -203,7 +203,7 @@ proc handleString[T: Lexer](lex: var T) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
 
-proc handleIdentWith[T: Lexer](lex: var T, kind: TokenKind) =
+proc indentHandler*[T: Lexer](lex: var T, kind: TokenKind) =
     ## Handle variable declarations based the following char sets
     ## ``{'a'..'z', 'A'..'Z', '_', '-'}`` and ``{'0'..'9'}``
     lex.startPos = lex.getColNumber(lex.bufpos)

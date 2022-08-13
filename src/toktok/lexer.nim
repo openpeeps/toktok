@@ -32,11 +32,36 @@ type
             else: discard
         case valueKind: NimNodeKind
             of nnkCharLit:
+                ## Character-based tokenizier.
+                ##
+                ## ```
+                ## Plus     > '+'
+                ## Minus    > '-'
+                ## Divide   > '/'
+                ## Multiply > '*'
+                ## ```
                 charNode: char
             of nnkStrLit:
+                ## All string based tokens based on following case:
+                ## ```{'a'..'z', 'A'..'Z', '_'}```
+                ##
+                ## Use string tokens to tokenize named
+                ## identifiers such as:
+                ## ```
+                ## Function > "function"
+                ## Import   > "import"
+                ## Class    > "class"
+                ## ```
                 strv: string
             of nnkCurly:
-                curlyv: seq[NimNode]
+                ## Sets of strings, allowing for tokenizing
+                ## variations of strings using one token identifier.
+                ## For example:
+                ## ```Bool_True > {"True", "true", "TRUE", "yes", "Yes", "YES"}```
+                variations: seq[NimNode]
+            of nnkCall, nnkCommand:
+                ## Optionally, you can pass a custom tokenizer
+                tokenizer: NimNode
             else: discard
 
     CurrentProgram = object
@@ -85,7 +110,7 @@ template setInfixToken() =
         curr.strv = tk[2].strVal
     elif tk[2].kind == nnkCurly:
         for curlyTk in tk[2]:
-            curr.curlyv.add(curlyTk)
+            curr.variations.add(curlyTk)
 
 template setInfixTokenRange() =
     if eqIdent(tk[2][0], ".."):
@@ -132,7 +157,16 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
         valueKind: tk[2].kind
     )
 
-    if tk.len == 4:
+    if tk[2].kind in {nnkCall, nnkCommand}:
+        expectKind tk[2][0], nnkIdent
+        if tk[2][0].strVal != "tokenize":
+            error("Use `tokenize` identifier for registering custom hooks. Example: `tokenize(myCustomProc, '$')`")
+        expectKind tk[2][1], nnkIdent       # a custom identifier
+        if tk[2][2].kind notin {nnkCharLit, nnkStrLit}:
+            error("Custom tokeniziers can only handle `nnkCharLit` or `nnkStrLit`. $1 given" % [ $(tk[2][2].kind) ])
+        # curr.tokenizer =
+        # echo curr.valueKind
+    elif tk.len == 4:
         expectKind tk[3], nnkStmtList
         setInfixTokenVariants()
     elif tk[2].len == 3:
@@ -260,10 +294,6 @@ proc createCaseStmt(): NimNode =
     ))
 
     branches.add((
-        cond: newLit('\''),
-        body: newStmtList(newCall newDotExpr(ident "lex", ident "handleString"))
-    ))
-    branches.add((
         cond: newLit('\"'),
         body: newStmtList(newCall newDotExpr(ident "lex", ident "handleString"))
     ))
@@ -311,7 +341,7 @@ proc createStrBasedCaseStmt(): NimNode =
             ))
         elif tk.valueKind == nnkCurly:
             branches.add((
-                cond: nnkBracket.newTree(tk.curlyv),
+                cond: nnkBracket.newTree(tk.variations),
                 body: nnkStmtList.newTree(tk.key)
             ))
         else: continue
