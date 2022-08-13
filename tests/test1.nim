@@ -8,6 +8,12 @@
 import unittest
 import toktok
 
+static:
+    Program.settings(
+        uppercase = true,
+        prefix = "Tk_"
+    )
+
 const sample = """
 const hello = 1 + 1
 """
