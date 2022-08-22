@@ -15,8 +15,6 @@ proc newExclude*(id: string): NimNode =
 proc newWhenStmt*(whenBranch: tuple[cond, body: NimNode]): NimNode =
     ## Constructor for `when` statements.
     result = newNimNode(nnkWhenStmt)
-    # if len(branches) < 1:
-    #     error("When statement must have at least one branch")
     result.add(newTree(nnkElifBranch, whenBranch.cond, whenBranch.body))
 
 proc newWhenStmt*(whenBranch: tuple[cond, body: NimNode], elseBranch: NimNode): NimNode =

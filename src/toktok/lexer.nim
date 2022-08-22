@@ -11,12 +11,14 @@ from std/algorithm import reversed
 from std/strutils import `%`, replace, indent, toUpperAscii, startsWith, join, split
 export lexbase, streams
 
-var tkIdentDefault {.compileTime.} = "Identifier"
-var tkPrefix {.compileTime.} = "Tk_"
-var tkUnknown {.compileTime.} = "Unknown"
-var tkEof {.compileTime.} = "Eof"
-var tkInteger {.compileTime.} = "Integer"
-var tkString {.compileTime.} = "String"
+var
+    tkIdentDefault {.compileTime.} = "Identifier"
+    tkPrefix {.compileTime.} = "Tk_"
+    tkUnknown {.compileTime.} = "Unknown"
+    tkEof {.compileTime.} = "Eof"
+    tkInteger {.compileTime.} = "Integer"
+    tkString {.compileTime.} = "String"
+    customTokTokHandlers {.compileTime.}: string
 
 include ./macroutils
 
@@ -61,7 +63,7 @@ type
                 variations: seq[NimNode]
             of nnkCall, nnkCommand:
                 ## Optionally, you can pass a custom tokenizer
-                tokenizer: NimNode
+                tokenizer: tuple[handler: string, charNode: char]
             else: discard
 
     CurrentProgram = object
@@ -147,7 +149,6 @@ template setInfixTokenVariants() =
                 charNode: variant[2],
                 key: getIdent identNode
             )
-            # echo variant[2].strVal
 
 proc parseInfixToken(tk: NimNode) {.compileTime.} =
     let tkInfixIdent = tk[1]
@@ -162,10 +163,10 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
         if tk[2][0].strVal != "tokenize":
             error("Use `tokenize` identifier for registering custom hooks. Example: `tokenize(myCustomProc, '$')`")
         expectKind tk[2][1], nnkIdent       # a custom identifier
-        if tk[2][2].kind notin {nnkCharLit, nnkStrLit}:
-            error("Custom tokeniziers can only handle `nnkCharLit` or `nnkStrLit`. $1 given" % [ $(tk[2][2].kind) ])
-        # curr.tokenizer =
-        # echo curr.valueKind
+        if tk[2][2].kind != nnkCharLit:
+            error("Custom tokeniziers can only handle `nnkCharLit`. $1 given" % [ $(tk[2][2].kind) ])
+        curr.tokenizer = (tk[2][1].strVal, char(tk[2][2].intVal))
+        setInfixToken()
     elif tk.len == 4:
         expectKind tk[3], nnkStmtList
         setInfixTokenVariants()
@@ -206,6 +207,10 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
 
 proc createCaseStmt(): NimNode =
     var branches: seq[tuple[cond, body: NimNode]]
+
+    # if customTokTokHandlers.len != 0:
+    #     echo customTokTokHandlers
+
     for k, tk in pairs(Program.tokens):
         if tk.valueKind == nnkCharLit:
             if tk.tokenType == TType.TSingle:
@@ -237,15 +242,30 @@ proc createCaseStmt(): NimNode =
                 var ifInfix = newEmptyNode()
                 var allChars = tk.variants
                 for v in reversed(tk.variants):
-                    let chars = map(allChars,
-                        proc(x: tuple[charNode, key: NimNode]): string =
-                            if x.charNode.kind == nnkCharLit:
-                                result = $(char(x.charNode.intVal))
-                            elif x.charNode.kind == nnkStrLit:
-                                result = x.charNode.strVal
-                        )
-                    discard allChars.pop()
-                    let strChars = chars.join()
+                    var strChars: string
+                    if v.charNode.kind == nnkCharLit:
+                        # Handle char-based variants, for example:
+                        # of '/':
+                        #   if next(lex, "/"):
+                        #     setTokenMulti(lex, TK_COMMENT, 2, 2)
+                        #   else:
+                        #     setToken(lex, TK_DIVIDE)
+                        let chars = map(allChars,
+                                            proc(x: tuple[charNode, key: NimNode]): string =
+                                                result = $(char(x.charNode.intVal))
+                                        )
+                        discard allChars.pop()
+                        strChars = chars.join()
+                    else:
+                        # Handle string-based variants, for example
+                        # of '@':
+                        #   if next(lex, "mixin"):
+                        #     setTokenMulti(lex, TK_MIXIN, 6, 6)
+                        #   elif next(lex, "include"):
+                        #     setTokenMulti(lex, TK_INCLUDE, 8, 8)
+                        #   else:
+                        #     setToken(lex, TK_AT)
+                        strChars = v.charNode.strVal
                     varBranches.add(
                         nnkElifBranch.newTree(
                             nnkCall.newTree(
@@ -266,15 +286,25 @@ proc createCaseStmt(): NimNode =
                 varBranches.add(
                     nnkElse.newTree(
                         newStmtList(
-                            nnkCall.newTree(
-                                ident("setToken"), ident("lex"), tk.key)
+                            newCall(
+                                ident("setToken"), ident("lex"), tk.key
                             )
                         )
+                    )
                 )
                 branches.add((
-                    cond: newLit(tk.charNode),
+                    cond: newLit tk.charNode,
                     body: varBranches
                 ))
+        if tk.valueKind == nnkCall:
+            branches.add((
+                cond: newLit tk.tokenizer.charNode,
+                body: newStmtList(
+                    newCall(
+                        ident(tk.tokenizer.handler), ident("lex"), tk.key
+                    )
+                )
+            ))
         else: continue
 
     branches.add((
@@ -351,6 +381,9 @@ proc createStrBasedCaseStmt(): NimNode =
         newDotExpr(ident "lex", ident "kind"),
         newCaseStmt(caseOfIdent, branches, nnkStmtList.newTree(getIdent(tkIdentDefault)))
     )
+
+macro handlers*(customHandlers) =
+    customTokTokHandlers = customHandlers.repr
 
 macro tokens*(tks: untyped) =
     ## Generate tokens based on given identifiers
@@ -441,4 +474,6 @@ macro tokens*(tks: untyped) =
         body = getAst(getTokenBody())
     )
 
+    # TODO support Nim code generation and save the file
+    # to the current project by using `getProjectPath`
     # echo result.repr

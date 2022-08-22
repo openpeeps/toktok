@@ -20,7 +20,7 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrin
 const numbers = {'0'..'9'}
 const azAZ = {'a'..'z', 'A'..'Z', '_', '-'}
 
-template setError*[L: Lexer](lexer: var L; message: string): untyped =
+proc setError*(lexer: var Lexer; message: string) =
     lexer.kind = TK_UNKNOWN
     if lexer.error.len == 0:
         lexer.error = message
@@ -62,7 +62,7 @@ proc hasLetters*[T: Lexer](lex: var T, pos: int): bool =
 proc hasNumbers*[T: Lexer](lex: var T, pos: int): bool =
     lex.existsInBuffer(pos, numbers)
 
-template setTokenMulti[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, multichars = 0) =
+proc setTokenMulti(lex: var Lexer, tokenKind: TokenKind, offset = 0, multichars = 0) =
     ## Set meta data of the current token and jump to the next one
     skip lex
     lex.startPos = lex.getColNumber(lex.bufpos)
@@ -157,7 +157,7 @@ proc setToken[T: Lexer](lexer: var T, tokenKind: TokenKind, offset = 1) =
     lexer.startPos = lexer.getColNumber(lexer.bufpos)
     inc(lexer.bufpos, offset)
 
-template handleNumber[T: Lexer](lex: var T) =
+proc handleNumber(lex: var Lexer) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     lex.token = "0"
     while lex.buf[lex.bufpos] == '0':
@@ -176,7 +176,6 @@ template handleNumber[T: Lexer](lex: var T) =
     lex.kind = TK_INTEGER
 
 proc handleString[T: Lexer](lex: var T) =
-    ## Handle string values wrapped in single or double quotes
     lex.startPos = lex.getColNumber(lex.bufpos)
     lex.token = ""
     inc lex.bufpos
@@ -192,7 +191,6 @@ proc handleString[T: Lexer](lex: var T) =
         of NewLines:
             if lex.multilineStrings:
                 inc lex.bufpos
-                continue
             else:
                 lex.setError("EOL reached before end of string")
                 return
@@ -203,11 +201,11 @@ proc handleString[T: Lexer](lex: var T) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
 
-proc indentHandler*[T: Lexer](lex: var T, kind: TokenKind) =
+proc handleCustomIdent*[T: Lexer](lex: var T, kind: TokenKind) =
     ## Handle variable declarations based the following char sets
     ## ``{'a'..'z', 'A'..'Z', '_', '-'}`` and ``{'0'..'9'}``
     lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
+    lex.token = ""
     inc lex.bufpos
     while true:
         if lex.hasLetters(lex.bufpos):
@@ -216,11 +214,12 @@ proc indentHandler*[T: Lexer](lex: var T, kind: TokenKind) =
         elif lex.hasNumbers(lex.bufpos):
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
-        else: break
+        else:
+            break
     lex.setToken kind
 
-template handleIdent[T: Lexer](lex: var T) =
-    ## Template to handle string-based identifiers
+proc handleIdent(lex: var Lexer) =
+    ## Handle string-based identifiers
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
     while true:
