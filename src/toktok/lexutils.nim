@@ -14,7 +14,7 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrin
     lex.kind = TK_UNKNOWN
     lex.token = ""
     lex.error = ""
-    lex.multilineStrings = allowMultilineStrings
+    lex.multiLineStr = allowMultilineStrings
     result = lex
 
 const numbers = {'0'..'9'}
@@ -40,27 +40,48 @@ proc handleNewLine[T: Lexer](lex: var T) =
     of '\n': lex.bufpos = lex.handleLF(lex.bufpos)
     else: discard
 
-proc skip*[T: Lexer](lex: var T) =
+proc inBuffer(lex: var Lexer, pos: int, chars:set[char]): bool =
+    try:
+        result = lex.buf[pos] in chars
+    except IndexDefect:
+        result = false
+
+proc hasLetters*(lex: var Lexer, pos: int): bool =
+    lex.inBuffer(pos, azAZ)
+
+proc hasNumbers*(lex: var Lexer, pos: int): bool =
+    lex.inBuffer(pos, numbers)
+
+proc skip*(lex: var Lexer, keepLastWhitespace = false) =
     var wsno: int
+    if not keepLastWhitespace:
+        while true:
+            case lex.buf[lex.bufpos]
+            of Whitespace:
+                if lex.buf[lex.bufpos] in NewLines:
+                    lex.handleNewLine()
+                else:
+                    inc lex.bufpos
+                    inc wsno
+            else:
+                lex.wsno = wsno
+                return
     while true:
         case lex.buf[lex.bufpos]
         of Whitespace:
-            if lex.buf[lex.bufpos] notin NewLines:
+            if lex.buf[lex.bufpos] in NewLines:
+                lex.handleNewLine()
+            else:
+                try:
+                    if lex.buf[lex.bufpos + 1] notin Whitespace and lex.buf[lex.bufpos + 1] notin NewLines:
+                        lex.wsno = wsno
+                        break
+                except IndexDefect: discard
                 inc lex.bufpos
                 inc wsno
-            else: lex.handleNewLine()
         else:
             lex.wsno = wsno
             break
-
-proc existsInBuffer[T: Lexer](lex: var T, pos: int, chars:set[char]): bool = 
-    lex.buf[pos] in chars
-
-proc hasLetters*[T: Lexer](lex: var T, pos: int): bool =
-    lex.existsInBuffer(pos, azAZ)
-
-proc hasNumbers*[T: Lexer](lex: var T, pos: int): bool =
-    lex.existsInBuffer(pos, numbers)
 
 proc setTokenMulti(lex: var Lexer, tokenKind: TokenKind, offset = 0, multichars = 0) =
     ## Set meta data of the current token and jump to the next one
@@ -178,6 +199,7 @@ proc handleNumber(lex: var Lexer) =
 proc handleString[T: Lexer](lex: var T) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     lex.token = ""
+    let lineno = lex.lineNumber
     inc lex.bufpos
     while true:
         case lex.buf[lex.bufpos]
@@ -189,8 +211,8 @@ proc handleString[T: Lexer](lex: var T) =
             inc lex.bufpos
             break
         of NewLines:
-            if lex.multilineStrings:
-                inc lex.bufpos
+            if lex.multiLineStr:
+                lex.skip(keepLastWhitespace = true)
             else:
                 lex.setError("EOL reached before end of string")
                 return
@@ -200,6 +222,8 @@ proc handleString[T: Lexer](lex: var T) =
         else:
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
+    if lex.multiLineStr:
+        lex.lineNumber = lineno
 
 proc handleCustomIdent*[T: Lexer](lex: var T, kind: TokenKind) =
     ## Handle variable declarations based the following char sets
@@ -215,6 +239,7 @@ proc handleCustomIdent*[T: Lexer](lex: var T, kind: TokenKind) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
         else:
+            dec lex.bufpos
             break
     lex.setToken kind
 

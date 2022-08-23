@@ -422,7 +422,7 @@ macro tokens*(tks: untyped) =
             ("error", "string"),
             ("startPos", "int"),
             ("wsno", "int"),
-            ("multilineStrings", "bool")
+            ("multiLineStr", "bool")
         ]
     )
 
@@ -460,7 +460,7 @@ macro tokens*(tks: untyped) =
             value: lex.token,
             wsno: lex.wsno,
             line: lex.lineNumber,
-            col: lex.getColNumber(lex.bufpos),
+            col: lex.startPos,
             pos: lex.startPos,
         )
 
