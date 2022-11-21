@@ -25,15 +25,15 @@ proc setError*(lexer: var Lexer; message: string) =
     if lexer.error.len == 0:
         lexer.error = message
 
-proc hasError*[L: Lexer](lexer: L): bool {.inline.} =
+proc hasError*(lexer: Lexer): bool {.inline.} =
     ## Determine if Lexer has any errors
     result = lexer.error.len != 0
 
-proc getError*[L: Lexer](lex: L): string {.inline.} =
+proc getError*(lex: Lexer): string {.inline.} =
     ## Retrieve error message from Lexer object
     result = "($1:$2) $3" % [$lex.lineNumber, $(lex.startPos), lex.error]
 
-proc handleNewLine[T: Lexer](lex: var T) =
+proc handleNewLine(lex: var Lexer) =
     ## Handle new lines
     case lex.buf[lex.bufpos]
     of '\c': lex.bufpos = lex.handleCR(lex.bufpos)
@@ -98,7 +98,7 @@ proc setTokenMulti(lex: var Lexer, tokenKind: TokenKind, offset = 0, multichars 
         inc lex.bufpos, offset
     lex.kind = tokenKind
 
-proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
+proc nextToEOL(lex: var Lexer): tuple[pos: int, token: string] =
     ## Get entire buffer starting from given position to the end of line
     inc lex.bufpos
     let wsno = lex.wsno
@@ -115,7 +115,7 @@ proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
     lex.startPos = col
     result = (pos: lex.bufpos, token: lex.token)
 
-proc handleSpecial[T: Lexer](lex: var T): char =
+proc handleSpecial(lex: var Lexer): char =
     ## Procedure for for handling special escaping tokens
     inc lex.bufpos
     case lex.buf[lex.bufpos]
@@ -131,7 +131,7 @@ proc handleSpecial[T: Lexer](lex: var T): char =
         lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
         result = '\0'
 
-proc nextToSpec[L: Lexer](lex: var L, endChar: char, tokenKind: TokenKind) =
+proc nextToSpec(lex: var Lexer, endChar: char, tokenKind: TokenKind) =
     ## Handle string values wrapped in single or double quotes
     lex.startPos = lex.getColNumber(lex.bufpos)
     # lex.token = ""
@@ -154,13 +154,13 @@ proc nextToSpec[L: Lexer](lex: var L, endChar: char, tokenKind: TokenKind) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
 
-proc next[T: Lexer](lex: var T, tkChar: char, offset = 1): bool =
+proc next(lex: var Lexer, tkChar: char, offset = 1): bool =
     ## Determine if next char is as expected without
     ## modifying current buffer pos
     skip lex
     result = lex.buf[lex.bufpos + offset] in {tkChar}
 
-proc next[T: Lexer](lex: var T, chars:string): bool =
+proc next(lex: var Lexer, chars:string): bool =
     ## Determine if next group of chars is as expected
     ## without modifying current buffer pos
     var i = 1
@@ -172,7 +172,7 @@ proc next[T: Lexer](lex: var T, chars:string): bool =
         inc i
     result = status
 
-proc setToken[T: Lexer](lexer: var T, tokenKind: TokenKind, offset = 1) =
+proc setToken(lexer: var Lexer, tokenKind: TokenKind, offset = 1) =
     ## Set meta data for current token
     lexer.kind = tokenKind
     lexer.startPos = lexer.getColNumber(lexer.bufpos)

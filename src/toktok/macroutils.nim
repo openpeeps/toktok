@@ -24,7 +24,7 @@ proc newWhenStmt*(whenBranch: tuple[cond, body: NimNode], elseBranch: NimNode): 
     result.add(newTree(nnkElse, elseBranch))
 
 proc newCaseStmt*(caseNode: NimNode, branches: openarray[tuple[cond, body: NimNode]],
-                 elseBranch = newEmptyNode()): NimNode {.compileTime.} =
+                 elseBranch = newEmptyNode()): NimNode =
     result = newNimNode(nnkCaseStmt)
     result.add caseNode
     for branch in branches:
@@ -129,7 +129,6 @@ proc newProc*(id: string, params: openarray[tuple[k,t: string, vt: bool]],
         newEmptyNode(),
         newStmtList(body)
     )
-    
 
 proc newTemplate*(id: string, params: openarray[tuple[k,t: string, vt: bool]],
                 public = false, body = newEmptyNode()): NimNode =
