@@ -35,13 +35,11 @@ const hello = 1 + 1
 ```nim
 import toktok
 
-# this is optional
-toktokSettings(
-    includeWhitespaces = false,         # if set true, each whitespace is tokenized as TK_WS
-    promptTokens = true,                # list all tokens on compile time
-    uppercaseTokens = true,             # transform tokens to uppercase, for example `Plus` > `TK_PLUS`
-    prefixTokens = "TK_"                # set a prefix for all tokens (default `TK_`)
-)
+static:
+    Program.settings(
+        uppercase = true,
+        prefix = "Tk_"
+    )
 
 tokens:
     Plus      > '+'
@@ -96,22 +94,6 @@ ast:
     Identifier > Infix
 ```
 
-### Tips
-Toktok handles integers `'0'..'9'` and identifiers `'a'..'z', 'A'..'Z'`.
-
-Toktok is creating a `TokenKind` enumeration for all given tokens. Note that, by default all tokens are transformed to `uppercase` and prefixed with `TK_`.
-You can change that from `toktokSettings`.
-
-
-## Based on Toktok
-Here you can find some cool projects based on Toktok Lexer
-
-| | | |
-| ---- | ---- | ---- |
-| <a href="https://github.com/openpeep/tim"><img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="115px"></a> | <a href="https://github.com/psypac/psypac"><img src="https://raw.githubusercontent.com/psypac/psypac/main/.github/psypac.png" width="115px"></a> | <a href="https://github.com/openpeep/parrot"><img src="https://raw.githubusercontent.com/openpeep/parrot/main/.github/parrot-logo.png" width="115px"></a> |
-
-_Your Toktok project here_
-
 ## Roadmap
 
 #### 0.1.0
@@ -129,7 +111,7 @@ If you like this project you can contribute to Toktok by opening new issues, fix
 <strong>Why Nim?</strong> Performance, fast compilation and C-like freedom. We want to keep code clean, readable, concise, and close to our intention. Also a very good language to learn in 2022.
 
 ### 🎩 License
-Toktok is an Open Source Software released under `MIT` license. [Developed by Humans from OpenPeep](https://github.com/openpeep).<br>
+Toktok is an Open Source Software released under `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
 Copyright &copy; 2022 OpenPeep & Contributors &mdash; All rights reserved.
 
 <a href="https://hetzner.cloud/?ref=Hm0mYGM9NxZ4"><img src="https://openpeep.ro/banners/openpeep-footer.png" width="100%"></a>
