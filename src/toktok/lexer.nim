@@ -15,7 +15,7 @@ var
     tkIdentDefault {.compileTime.} = "Identifier"
     tkPrefix {.compileTime.} = "Tk_"
     tkUnknown {.compileTime.} = "Unknown"
-    tkEof {.compileTime.} = "Eof"
+    tkEof {.compileTime.} = "EOF"
     tkInteger {.compileTime.} = "Integer"
     tkString {.compileTime.} = "String"
     customTokTokHandlers {.compileTime.}: string
@@ -57,7 +57,7 @@ type
                 strv: string
             of nnkCurly:
                 ## Sets of strings, allowing for tokenizing
-                ## variations of strings using one token identifier.
+                ## two or more string variations under a single token identifier.
                 ## For example:
                 ## ```Bool_True > {"True", "true", "TRUE", "yes", "Yes", "YES"}```
                 variations: seq[NimNode]
@@ -157,14 +157,13 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
         key: getIdent tkInfixIdent,
         valueKind: tk[2].kind
     )
-
     if tk[2].kind in {nnkCall, nnkCommand}:
         expectKind tk[2][0], nnkIdent
         if tk[2][0].strVal != "tokenize":
-            error("Use `tokenize` identifier for registering custom hooks. Example: `tokenize(myCustomProc, '$')`")
+            error("Call `tokenize()` for registering custom handlers. Example: `tokenize(myCustomProc, '$')`")
         expectKind tk[2][1], nnkIdent       # a custom identifier
         if tk[2][2].kind != nnkCharLit:
-            error("Custom tokeniziers can only handle `nnkCharLit`. $1 given" % [ $(tk[2][2].kind) ])
+            error("Custom tokenizers can only handle `nnkCharLit` values. $1 given" % [ $(tk[2][2].kind) ])
         curr.tokenizer = (tk[2][1].strVal, char(tk[2][2].intVal))
         setInfixToken()
     elif tk.len == 4:
