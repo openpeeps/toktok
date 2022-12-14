@@ -7,6 +7,17 @@
 import toktok/lexer
 export lexer
 
+let sampleCode = """
+let user = lemon
+/*
+    Something cool here
+ */
+
+// inline comment
+
+1 + 1 - 1 == 1
+"""
+
 when isMainModule:
     static:
         Program.settings(
@@ -18,6 +29,8 @@ when isMainModule:
         Plus      > '+'
         Minus     > '-'
         Multi     > '*'
+        Assign    > '=':
+            EQ > '='
         Div       > '/':
             BlockComment ? '*' .. "*/"
             InlineComment ? '/' .. EOL
@@ -27,7 +40,7 @@ when isMainModule:
         SetTrue   > {"TRUE", "True", "true"}
         SetFalse  > {"FALSE", "False", "false"}
 
-    var lex = Lexer.init(fileContents = readFile("example.txt"))
+    var lex = Lexer.init(fileContents = sampleCode)
     if lex.hasError:
         echo lex.getError
     else:
