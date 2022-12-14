@@ -98,9 +98,9 @@ proc setTokenMulti(lex: var Lexer, tokenKind: TokenKind, offset = 0, multichars 
         inc lex.bufpos, offset
     lex.kind = tokenKind
 
-proc nextToEOL(lex: var Lexer): tuple[pos: int, token: string] =
+proc nextToEOL(lex: var Lexer, offset = 1): tuple[pos: int, token: string] =
     ## Get entire buffer starting from given position to the end of line
-    inc lex.bufpos
+    inc lex.bufpos, offset
     let wsno = lex.wsno
     let col = lex.getColNumber(lex.bufpos)  # TODO keep initial start position
     skip lex
@@ -131,7 +131,25 @@ proc handleSpecial(lex: var Lexer): char =
         lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
         result = '\0'
 
-proc nextToSpec(lex: var Lexer, endChar: char, tokenKind: TokenKind) =
+proc next(lex: var Lexer, tkChar: char, offset = 1): bool =
+    # Determine if next char is as expected
+    # without modifying the current buffer
+    skip lex
+    result = lex.buf[lex.bufpos + offset] in {tkChar}
+
+proc next(lex: var Lexer, chars:string): bool =
+    # Determine if next group of chars is
+    # as expected without modifying the current buffer
+    var i = 1
+    var status = false
+    for c in chars:
+        status = lex.next(c, i)
+        if status == false:
+            return status
+        inc i
+    result = status
+
+proc nextToSpec(lex: var Lexer, endChar: char, tokenKind: TokenKind, str = "") =
     ## Handle string values wrapped in single or double quotes
     lex.startPos = lex.getColNumber(lex.bufpos)
     # lex.token = ""
@@ -144,33 +162,23 @@ proc nextToSpec(lex: var Lexer, endChar: char, tokenKind: TokenKind) =
             lex.kind = tokenKind
             inc lex.bufpos
             break
-        elif lex.buf[lex.bufpos] in NewLines:
-            lex.setError("EOL reached before end of input")
-            return
+        # elif lex.buf[lex.bufpos] in NewLines:
+            # lex.handleNewLine()
+            # lex.setError("EOL reached before end of input")
+            # return
         elif lex.buf[lex.bufpos] == EndOfFile:
             lex.setError("EOF reached before end of input")
             return
         else:
+            if str.len != 0:
+                if lex.buf[lex.bufpos] == str[0]:
+                    inc lex.bufpos
+                    continue
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
 
-proc next(lex: var Lexer, tkChar: char, offset = 1): bool =
-    ## Determine if next char is as expected without
-    ## modifying current buffer pos
-    skip lex
-    result = lex.buf[lex.bufpos + offset] in {tkChar}
-
-proc next(lex: var Lexer, chars:string): bool =
-    ## Determine if next group of chars is as expected
-    ## without modifying current buffer pos
-    var i = 1
-    var status = false
-    for c in chars:
-        status = lex.next(c, i)
-        if status == false:
-            return status
-        inc i
-    result = status
+proc nextToSpec(lex: var Lexer, endChar: string, tokenKind: TokenKind) =
+    lex.nextToSpec(endChar[^1], tokenKind, endChar)
 
 proc setToken(lexer: var Lexer, tokenKind: TokenKind, offset = 1) =
     ## Set meta data for current token

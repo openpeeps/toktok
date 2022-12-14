@@ -18,18 +18,16 @@ when isMainModule:
         Plus      > '+'
         Minus     > '-'
         Multi     > '*'
-        Div       > '/'
-        Assign    > '='
-        Comment   > '#' .. EOL      # anything from `#` to end of line
-        CommentAlt > "/*" .. "*/"   # anything starting with `/*` to `*/`
-        Var       > "var"
+        Div       > '/':
+            BlockComment ? '*' .. "*/"
+            InlineComment ? '/' .. EOL
         Let       > "let"
         Const     > "const"
-        # single case for multi keywords
-        BTrue     > @["TRUE", "True", "true", "YES", "Yes", "yes", "y"]
-        BFalse    > @["FALSE", "False", "false", "NO", "No", "no", "n"]
+        Var       > "var"
+        SetTrue   > {"TRUE", "True", "true"}
+        SetFalse  > {"FALSE", "False", "false"}
 
-    var lex = Lexer.init(fileContents = "const hello = 1 + 1")
+    var lex = Lexer.init(fileContents = readFile("example.txt"))
     if lex.hasError:
         echo lex.getError
     else:

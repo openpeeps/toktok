@@ -24,13 +24,15 @@ include ./macroutils
 
 type
     TType = enum
-        TSingle, TRange, TCharToEndOfLine, TVariant
+        TSingle, TRange, TEOL, TVariant
 
-    TK* = object
+    TK* = ref object
         key: NimNode
         case tokenType: TType
             of TVariant:
-                variants: seq[tuple[charNode, key: NimNode]]
+                variants: seq[tuple[charNode, key: NimNode, tail: TK]]
+            of TRange:
+                tail: string
             else: discard
         case valueKind: NimNodeKind
             of nnkCharLit:
@@ -118,7 +120,7 @@ template setInfixTokenRange() =
     if eqIdent(tk[2][0], ".."):
         # handle range-based tokens, for example `#` .. EndOfLine
         if tk[2][2].kind == nnkIdent and tk[2][2].strVal == "EOL":
-            curr.tokenType = TType.TCharToEndOfLine
+            curr.tokenType = TType.TEOL
     curr.valueKind = tk[2][1].kind
     if tk[2][1].kind == nnkCharLit:
         # handle char based tokens `!`, `+`
@@ -137,22 +139,43 @@ template setInfixTokenVariants() =
         if variant[2].kind == nnkCharLit:
             curr.variants.add (
                 charNode: variant[2],
-                key: getIdent identNode
+                key: getIdent identNode,
+                tail: nil
             )
         elif variant[2].kind == nnkInfix:
-            curr.variants.add (
-                charNode: variant[2][2],
-                key: getIdent identNode
-            )
+            if variant[2][0].kind == nnkIdent and variant[2][0].strVal == "..":
+                if variant[2][2].kind == nnkIdent:
+                    # Create a special range object from x to end of line
+                    if variant[2][2].strVal == "EOL":
+                        curr.variants.add (
+                            charNode: variant[2][1],
+                            key: getIdent identNode,
+                            tail: TK(tokenType: TEOL)
+                        )
+                    else: error("Expected EOL identifier")
+                else:
+                    # Create a TRange object from x to y
+                    expectKind variant[2][2], nnkStrLit
+                    curr.variants.add (
+                        charNode: variant[2][1],
+                        key: getIdent identNode,
+                        tail: TK(tokenType: TRange, tail: variant[2][2].strVal)
+                    )
+            else:
+                curr.variants.add (
+                    charNode: variant[2][2],
+                    key: getIdent identNode,
+                    tail: nil
+                )                    
         elif variant[2].kind == nnkStrLit:
             curr.variants.add (
                 charNode: variant[2],
-                key: getIdent identNode
+                key: getIdent identNode,
+                tail: nil
             )
 
 proc parseInfixToken(tk: NimNode) {.compileTime.} =
     let tkInfixIdent = tk[1]
-    let tkInfixVal = tk[2]
     var curr = TK(
         key: getIdent tkInfixIdent,
         valueKind: tk[2].kind
@@ -221,7 +244,7 @@ proc createCaseStmt(): NimNode =
                         newLit(1)
                     )
                 ))
-            elif tk.tokenType == TType.TCharToEndOfLine:
+            elif tk.tokenType == TType.TEOL:
                 branches.add((
                     cond: newLit(tk.charNode),
                     body:
@@ -235,26 +258,69 @@ proc createCaseStmt(): NimNode =
                         )
                 ))
             elif tk.tokenType == TType.TVariant:
-                var varBranches = nnkIfStmt.newTree()
-                var i = tk.variants.len + 1 # including the default case
-
-                var ifInfix = newEmptyNode()
-                var allChars = tk.variants
+                var 
+                    varBranches = nnkIfStmt.newTree()
+                    allChars = tk.variants
+                    skipSpecial = false
                 for v in reversed(tk.variants):
                     var strChars: string
-                    if v.charNode.kind == nnkCharLit:
+                    if v.charNode.kind == nnkCharLit and v.tail == nil:
                         # Handle char-based variants, for example:
-                        # of '/':
-                        #   if next(lex, "/"):
-                        #     setTokenMulti(lex, TK_COMMENT, 2, 2)
+                        # of '=':
+                        #   if next(lex, "="):
+                        #     setTokenMulti(lex, TK_EQ, 2, 2)
                         #   else:
-                        #     setToken(lex, TK_DIVIDE)
+                        #     setToken(lex, TK_ASSIGN)
                         let chars = map(allChars,
-                                            proc(x: tuple[charNode, key: NimNode]): string =
+                                            proc(x: tuple[charNode, key: NimNode, tail: TK]): string =
                                                 result = $(char(x.charNode.intVal))
                                         )
                         discard allChars.pop()
                         strChars = chars.join()
+                    elif v.charNode.kind == nnkCharLit and v.tail != nil:
+                        # Handle char-based variants with tails
+                        # of '/':
+                        #   if next(lex, "/"):
+                        #       lex.setToken(TK_INLINE_COMMENT, lex.nextToEOL().pos)
+                        if v.tail.tokenType == TEOL:
+                            skipSpecial = true
+                            varBranches.add(
+                                nnkElifBranch.newTree(
+                                    nnkCall.newTree(
+                                        ident "next", ident "lex", newLit(char(v.charNode.intVal))
+                                    ),
+                                    newStmtList(
+                                        nnkCall.newTree(
+                                            newDotExpr(ident "lex", ident "setToken"),
+                                            v.key,
+                                            newDotExpr(
+                                                newCall(
+                                                    ident "nextToEOL",
+                                                    ident "lex",
+                                                    newLit(2) # inc by offset
+                                                ),
+                                                ident "pos"
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        elif v.tail.tokenType == TRange:
+                            varBranches.add(
+                                nnkElifBranch.newTree(
+                                    nnkCall.newTree(
+                                        ident "next", ident "lex", newLit(char(v.charNode.intVal))
+                                    ),
+                                    newStmtList(
+                                        nnkCall.newTree(
+                                            ident "nextToSpec",
+                                            ident "lex",
+                                            newLit(v.tail.tail),
+                                            v.key
+                                        )
+                                    )
+                                )
+                            )
                     else:
                         # Handle string-based variants, for example
                         # of '@':
@@ -265,22 +331,24 @@ proc createCaseStmt(): NimNode =
                         #   else:
                         #     setToken(lex, TK_AT)
                         strChars = v.charNode.strVal
-                    varBranches.add(
-                        nnkElifBranch.newTree(
-                            nnkCall.newTree(
-                                ident "next", ident "lex", newLit(strChars)
-                            ),
-                            newStmtList(
+                    if not skipSpecial:
+                        varBranches.add(
+                            nnkElifBranch.newTree(
                                 nnkCall.newTree(
-                                    ident "setTokenMulti",
-                                    ident "lex",
-                                    v.key,
-                                    newLit(strChars.len + 1),
-                                    newLit(strChars.len + 1)
+                                    ident "next", ident "lex", newLit(strChars)
+                                ),
+                                newStmtList(
+                                    nnkCall.newTree(
+                                        ident "setTokenMulti",
+                                        ident "lex",
+                                        v.key,
+                                        newLit(strChars.len + 1),
+                                        newLit(strChars.len + 1)
+                                    )
                                 )
                             )
                         )
-                    )
+                        skipSpecial = false
 
                 varBranches.add(
                     nnkElse.newTree(
@@ -389,8 +457,6 @@ macro tokens*(tks: untyped) =
     ## and create the main `case statement` handler.
     clear(Program.tokens)
     addToken getDefaultIdent(), TK(key: getDefaultIdent())
-    var tkIdent = getDefaultIdent()
-
     expectKind tks, nnkStmtList
     result = newStmtList()
     for tk in tks:
@@ -472,7 +538,6 @@ macro tokens*(tks: untyped) =
         ],
         body = getAst(getTokenBody())
     )
-
     # TODO support Nim code generation and save the file
     # to the current project by using `getProjectPath`
     # echo result.repr
