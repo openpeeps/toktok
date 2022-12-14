@@ -118,7 +118,7 @@ proc newBlockComment(comment: string): Node =
 proc newIdentifier(ident: string): Node =
     result = Node(nodeName: NTIdent.symbolName, nodeType: NTIdent, ident: ident)
 
-proc newInfix(leftNode: Node, op: OperatorType, rightNode: Node): Node =
+proc newInfix(leftNode: Node, opType: OperatorType, rightNode: Node): Node =
     result = Node(
         nodeName:       NTInfix.symbolName,
         nodeType:       NTInfix,
@@ -127,7 +127,6 @@ proc newInfix(leftNode: Node, op: OperatorType, rightNode: Node): Node =
         infixOp:        opType,
         infixRight:     rightNode
     )
-
 #
 # Parser API
 #
