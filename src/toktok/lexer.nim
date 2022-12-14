@@ -231,7 +231,7 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
                     newLit($(tk.charNode))
                 )
             )
-        elif tk.valueKind == nnkCharLit:
+        elif tk.valueKind == nnkStrLit:
             enumTokens.add(
                 nnkEnumFieldDef.newTree(
                     tk.key,
@@ -240,7 +240,6 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
             )
         else: enumTokens.add(tk.key)
 
-    echo enumTokens.repr
     result = newEnum(
         ident "TokenKind",
         fields = enumTokens,
