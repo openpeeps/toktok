@@ -162,7 +162,7 @@ proc walk(p: var Parser, offset = 1) =
         inc i
 
 proc parseInteger(p: var Parser): Node =
-    result = Node(nodeName: NTString.symbolName, nodeType: NTInt, intVal: parseInt(p.current.value))
+    result = Node(nodeName: NTInt.symbolName, nodeType: NTInt, intVal: parseInt(p.current.value))
     walk(p)
 
 proc parseString(p: var Parser): Node =
@@ -223,7 +223,9 @@ proc parseCondition(p: var Parser): Node =
     if p.hasError(): return
     walk(p) # }
     if p.current.kind == TK_ELIF:
-        discard
+        discard # something similar to if handler
+    if p.current.kind == TK_ELSE:
+        discard # something similar to if handler but including only body
     result.ifBody = newStmtList(ifBodyNodes)
 
 proc unexpected(p: var Parser): Node =
