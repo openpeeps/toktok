@@ -206,11 +206,6 @@ template parseCurrentToken() =
             parseInfixToken(tk)         # parse token identifiers with values or variants
         else: discard
 
-dumpAstGen:
-    type test = enum
-        yes = "ok"
-        a = "s"
-
 proc createTokenKindEnum(): NimNode {.compileTime.} =
     ## Generates the `TokenKind` enumeration
     var enumTokens: seq[NimNode] = @[]
