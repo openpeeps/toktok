@@ -1,9 +1,12 @@
-import std/[json, jsonutils]
 import toktok
+import std/[json, jsonutils] # required to output AST as stringified JSON
 
 from strutils import `%`, parseInt, parseBool
 from std/enumutils import symbolName
 
+#
+# Toktok Lexer
+#
 static:
     Program.settings(
         uppercase = true,
@@ -38,7 +41,9 @@ tokens:
     LPAR      > '('
     RPAR      > ')'
 
-# AST API
+#
+# Abstract Syntax Tree API
+#
 type
     NType = enum
         NTInt
@@ -49,6 +54,7 @@ type
         NTBlockComment
         NTInfix
         NTStmtList
+        NTIdent
 
     OperatorType* {.pure.} = enum
         None
@@ -73,8 +79,9 @@ type
             boolVal: bool
         of NTInfix:
             infixOp: OperatorType
+            infixLeft: Node
             infixOpSymbol: string
-            infixLeft, infixRight*: Node
+            infixRight: Node
         of NTCondition:
             ifCond: Node
             ifBody, elseBody: Node
@@ -83,6 +90,8 @@ type
             stmtList: seq[Node]
         of NTInlineComment, NTBlockComment:
             comment: string
+        of NTIdent:
+            ident: string
 
     Program* = object
         nodes: seq[Node]
@@ -106,7 +115,13 @@ proc newInlineComment(comment: string): Node =
 proc newBlockComment(comment: string): Node =
     result = Node(nodeName: NTBlockComment.symbolName, nodeType: NTBlockComment, comment: comment)
 
+proc newIdentifier(ident: string): Node =
+    result = Node(nodeName: NTIdent.symbolName, nodeType: NTIdent, ident: ident)
+
+
+#
 # Parser API
+#
 type
     Parser* = object
         lex: Lexer
@@ -176,26 +191,39 @@ proc parseInfix(p: var Parser): Node =
 proc parseCondition(p: var Parser): Node =
     let this = p.current
     walk(p) # skip `if`
-    let infixNode: Node = p.parseInfix()
+    var condNode: Node
+    var leftFn: PrefixFunction
+    if p.next.kind in tkOperators:
+        condNode = p.parseInfix()
+        if condNode == nil:
+            p.setError("Invalid operator")
+            return
+    else:
+        leftFn = p.getPrefixFn(p.next.kind)
+        if leftFn == nil:
+            p.setError("Invalid conditional statement")
+            return
+        condNode = p.leftFn()
     if p.current.kind != TK_LCUR:
         p.setError("Missing \"{\" after conditional statement")
         return
     walk(p) # skip {
-    if infixNode != nil:
-        result = Node(nodeName: NTCondition.symbolName, nodeType: NTCondition)
-        result.ifCond = infixNode
-        var ifBodyNodes: seq[Node]
-        while p.current.kind != TK_RCUR:
-            if p.current.kind == TK_EOF:
-                p.setError("EOF reached before closing condition body")
-                break
-            elif p.current.pos <= this.pos:
-                p.setError("Missing \"}\" after condition body")
-                break
-            ifBodyNodes.add(p.parseExpression())
-        if p.hasError(): return
-        walk(p) # }
-        result.ifBody = newStmtList(ifBodyNodes)
+    result = Node(nodeName: NTCondition.symbolName, nodeType: NTCondition)
+    result.ifCond = condNode
+    var ifBodyNodes: seq[Node]
+    while p.current.kind != TK_RCUR:
+        if p.current.kind == TK_EOF:
+            p.setError("EOF reached before closing condition body")
+            break
+        elif p.current.pos <= this.pos:
+            p.setError("Missing \"}\" after condition body")
+            break
+        ifBodyNodes.add(p.parseExpression())
+    if p.hasError(): return
+    walk(p) # }
+    if p.current.kind == TK_ELIF:
+        discard
+    result.ifBody = newStmtList(ifBodyNodes)
 
 proc unexpected(p: var Parser): Node =
     ## TODO, show chars value in current TokenTuple
@@ -210,6 +238,10 @@ proc parseBlockComment(p: var Parser): Node =
     result = newBlockComment(p.current.value)
     walk(p)
 
+proc parseIdentifier(p: var Parser): Node =
+    result = newIdentifier(p.current.value)
+    walk p
+
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     result = case kind:
         of TK_INTEGER: parseInteger
@@ -217,6 +249,7 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
         of TK_IF: parseCondition
         of TK_INLINE_COMMENT: parseInlineComment
         of TK_BLOCK_COMMENT: parseBlockComment
+        of TK_IDENTIFIER: parseIdentifier
         else: unexpected
 
 proc parseExpression(p: var Parser): Node =

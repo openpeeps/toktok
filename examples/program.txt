@@ -1,6 +1,7 @@
-if 20 == 20 {
-    // so cool
-    /**
-     * whaaa
-     */
+if 2 == 2 { /* something cool */ }
+
+if 2 >= 3 {} // oh
+
+if userPreferences == "" {
+    // eat cookies dude
 }
