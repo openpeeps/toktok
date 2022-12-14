@@ -206,6 +206,11 @@ template parseCurrentToken() =
             parseInfixToken(tk)         # parse token identifiers with values or variants
         else: discard
 
+dumpAstGen:
+    type test = enum
+        yes = "ok"
+        a = "s"
+
 proc createTokenKindEnum(): NimNode {.compileTime.} =
     ## Generates the `TokenKind` enumeration
     var enumTokens: seq[NimNode] = @[]
@@ -218,8 +223,24 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
         if tk.tokenType == TType.TVariant:
             for variant in tk.variants:
                 enumTokens.add(variant.key)
-        enumTokens.add(tk.key)
+            enumTokens.add(tk.key)
+        elif tk.valueKind == nnkCharLit:
+            enumTokens.add(
+                nnkEnumFieldDef.newTree(
+                    tk.key,
+                    newLit($(tk.charNode))
+                )
+            )
+        elif tk.valueKind == nnkCharLit:
+            enumTokens.add(
+                nnkEnumFieldDef.newTree(
+                    tk.key,
+                    newLit(tk.strv)
+                )
+            )
+        else: enumTokens.add(tk.key)
 
+    echo enumTokens.repr
     result = newEnum(
         ident "TokenKind",
         fields = enumTokens,
