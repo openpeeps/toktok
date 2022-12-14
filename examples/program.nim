@@ -118,6 +118,15 @@ proc newBlockComment(comment: string): Node =
 proc newIdentifier(ident: string): Node =
     result = Node(nodeName: NTIdent.symbolName, nodeType: NTIdent, ident: ident)
 
+proc newInfix(leftNode: Node, op: OperatorType, rightNode: Node): Node =
+    result = Node(
+        nodeName:       NTInfix.symbolName,
+        nodeType:       NTInfix,
+        infixOpSymbol:  opType.symbolName,
+        infixLeft:      leftNode,
+        infixOp:        opType,
+        infixRight:     rightNode
+    )
 
 #
 # Parser API
@@ -179,14 +188,7 @@ proc parseInfix(p: var Parser): Node =
     if rightFn != nil:
         rightNode = rightFn(p)
 
-    result = Node(
-        nodeName:       NTInfix.symbolName,
-        nodeType:       NTInfix,
-        infixOpSymbol:  opType.symbolName,
-        infixLeft:      leftNode,
-        infixOp:        opType,
-        infixRight:     rightNode
-    )
+    result = newInfix(leftNode, opType, rightNode)
 
 proc parseCondition(p: var Parser): Node =
     let this = p.current
