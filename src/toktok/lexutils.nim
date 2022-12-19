@@ -20,14 +20,14 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrin
 const numbers = {'0'..'9'}
 const azAZ = {'a'..'z', 'A'..'Z', '_', '-'}
 
-proc setError*(lexer: var Lexer; message: string) =
-    lexer.kind = TK_UNKNOWN
-    if lexer.error.len == 0:
-        lexer.error = message
+proc setError*(lex: var Lexer; message: string) =
+    lex.kind = TK_UNKNOWN
+    if lex.error.len == 0:
+        lex.error = message
 
-proc hasError*(lexer: Lexer): bool {.inline.} =
+proc hasError*(lex: Lexer): bool {.inline.} =
     ## Determine if Lexer has any errors
-    result = lexer.error.len != 0
+    result = lex.error.len != 0
 
 proc getError*(lex: Lexer): string {.inline.} =
     ## Retrieve error message from Lexer object
@@ -188,21 +188,26 @@ proc setToken(lexer: var Lexer, tokenKind: TokenKind, offset = 1) =
 
 proc handleNumber(lex: var Lexer) =
     lex.startPos = lex.getColNumber(lex.bufpos)
-    lex.token = "0"
-    while lex.buf[lex.bufpos] == '0':
-        inc lex.bufpos
+    var toFloat: bool
     while true:
         case lex.buf[lex.bufpos]
         of '0'..'9':
-            if lex.token == "0":
-                setLen(lex.token, 0)
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
         of 'a'..'z', 'A'..'Z', '_', '-':
             lex.setError("Invalid number")
             return
-        else: break
-    lex.kind = TK_INTEGER
+        of '.':
+            if toFloat:
+                lex.setError("Invalid float number")
+                return
+            toFloat = true
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+        else:
+            if not toFloat: lex.kind = TK_INTEGER
+            else:           lex.kind = TK_FLOAT
+            break
 
 proc handleString[T: Lexer](lex: var T) =
     lex.startPos = lex.getColNumber(lex.bufpos)

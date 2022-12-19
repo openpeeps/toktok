@@ -17,6 +17,7 @@ var
     tkUnknown {.compileTime.} = "Unknown"
     tkEof {.compileTime.} = "EOF"
     tkInteger {.compileTime.} = "Integer"
+    tkFloat {.compileTime.} = "Float"
     tkString {.compileTime.} = "String"
     customTokTokHandlers {.compileTime.}: string
 
@@ -210,6 +211,7 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
     ## Generates the `TokenKind` enumeration
     var enumTokens: seq[NimNode] = @[]
     enumTokens.add getIdent(tkInteger)
+    enumTokens.add getIdent(tkFloat)
     enumTokens.add getIdent(tkString)
     enumTokens.add getIdent(tkIdentDefault)
     enumTokens.add getIdent(tkEof)

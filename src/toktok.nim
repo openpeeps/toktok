@@ -8,14 +8,7 @@ import toktok/lexer
 export lexer
 
 let sampleCode = """
-let user = lemon
-/*
-    Something cool here
- */
-
-// inline comment
-
-1 + 1 - 1 == 1
+100.000
 """
 
 when isMainModule:
@@ -37,14 +30,15 @@ when isMainModule:
         Let       > "let"
         Const     > "const"
         Var       > "var"
-        SetTrue   > {"TRUE", "True", "true"}
-        SetFalse  > {"FALSE", "False", "false"}
 
     var lex = Lexer.init(fileContents = sampleCode)
     if lex.hasError:
         echo lex.getError
     else:
-        while true:
-            var curr = lex.getToken()           # tuple[kind: TokenKind, value: string, wsno, col, line: int]
-            if curr.kind == TK_EOF: break
+        var curr = lex.getToken()
+        while curr.kind != TK_EOF:
+            if lex.hasError:
+                echo lex.getError
+                break
             echo curr
+            curr = lex.getToken()
