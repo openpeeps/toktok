@@ -518,7 +518,8 @@ macro tokens*(tks: untyped) =
     # Include lexutils file
     result.add newInclude("./lexutils")
 
-    result.add customTokTokHandlers
+    if customTokTokHandlers.len != 0:
+        result.add customTokTokHandlers
 
     # Create `getMainCaseStmt` compile-time procedure
     result.add newProc(
