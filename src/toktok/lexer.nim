@@ -19,7 +19,7 @@ var
     tkInteger {.compileTime.} = "Integer"
     tkFloat {.compileTime.} = "Float"
     tkString {.compileTime.} = "String"
-    customTokTokHandlers {.compileTime.}: string
+    customTokTokHandlers {.compileTime.} = newStmtList()
 
 include ./macroutils
 
@@ -247,9 +247,6 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
 proc createCaseStmt(): NimNode =
     var branches: seq[tuple[cond, body: NimNode]]
 
-    # if customTokTokHandlers.len != 0:
-    #     echo customTokTokHandlers
-
     for k, tk in pairs(Program.tokens):
         if tk.valueKind == nnkCharLit:
             if tk.tokenType == TType.TSingle:
@@ -467,7 +464,7 @@ proc createStrBasedCaseStmt(): NimNode =
     )
 
 macro handlers*(customHandlers) =
-    customTokTokHandlers = customHandlers.repr
+    customTokTokHandlers = customHandlers
 
 macro tokens*(tks: untyped) =
     ## Generate tokens based on given identifiers
@@ -510,7 +507,7 @@ macro tokens*(tks: untyped) =
 
     # Create `LexerException`
     result.add newObject(id = "LexerException", parent = "CatchableError", public = true)
-    
+
     # Create `generateIdentCase` compile-time procedure
     result.add newProc(
         id = "generateIdentCase",
@@ -520,6 +517,8 @@ macro tokens*(tks: untyped) =
 
     # Include lexutils file
     result.add newInclude("./lexutils")
+
+    result.add customTokTokHandlers
 
     # Create `getMainCaseStmt` compile-time procedure
     result.add newProc(
@@ -555,6 +554,7 @@ macro tokens*(tks: untyped) =
         ],
         body = getAst(getTokenBody())
     )
+
     # TODO support Nim code generation and save the file
     # to the current project by using `getProjectPath`
     # echo result.repr
