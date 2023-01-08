@@ -193,7 +193,7 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
     elif tk.len == 4:
         expectKind tk[3], nnkStmtList
         setInfixTokenVariants()
-    elif tk[2].len == 3:
+    elif tk[2].kind == nnkInfix:
         setInfixTokenRange()
     else:
         setInfixToken()
