@@ -79,8 +79,7 @@ type
 var Program* {.compileTime.} = CurrentProgram()
 
 proc settings*(program: var CurrentProgram, uppercase: bool, prefix = tkPrefix) {.compileTime.} =
-    ## Available on compile-time. Use it inside a `static` block to
-    ## change your program settings.
+    ## Change toktok settings at compile time using `static` block
     program.preferences = (uppercase, prefix)
 
 proc addToken(tk: NimNode, currToken: TK) {.compileTime.} =
