@@ -98,21 +98,21 @@ proc nextToEOL(lex: var Lexer, offset = 1): tuple[pos: int, token: string] =
   lex.startPos = col
   result = (pos: lex.bufpos, token: lex.token)
 
-proc handleSpecial(lex: var Lexer): char =
+proc handleSpecial(lex: var Lexer) =
   ## Procedure for for handling special escaping tokens
   inc lex.bufpos
   case lex.buf[lex.bufpos]
   of 'n':
-    lex.token.add "\\n"
-    result = '\n'
+    add lex.token, "\\n"
     inc lex.bufpos
   of '\\':
-    lex.token.add "\\\\"
-    result = '\\'
+    add lex.token, "\\\\"
+    inc lex.bufpos
+  of '"':
+    add lex.token, "\\\""
     inc lex.bufpos
   else:
     lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
-    result = '\0'
 
 proc next(lex: var Lexer, tkChar: char, offset = 1): bool =
   # Determine if next char is as expected
@@ -139,7 +139,7 @@ proc nextToSpec(lex: var Lexer, endChar: char, tokenKind: TokenKind, str = "") =
   inc lex.bufpos
   while true:
     if lex.buf[lex.bufpos] == '\\':
-      discard lex.handleSpecial()
+      lex.handleSpecial()
       if lex.hasError(): return
     elif lex.buf[lex.bufpos] == endChar:
       lex.kind = tokenKind
@@ -200,7 +200,7 @@ proc handleString[T: Lexer](lex: var T) =
   while true:
     case lex.buf[lex.bufpos]
     of '\\':
-      discard lex.handleSpecial()
+      lex.handleSpecial()
       if lex.hasError(): return
     of '"':
       lex.kind = TK_STRING
