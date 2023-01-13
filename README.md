@@ -21,6 +21,9 @@ It is meant to be used by higher level parsers for writing any kind of tools or 
 nimble install toktok
 ```
 
+## Debug
+Compile with `-d:toktokdebug` to print your tokens
+
 ## Quick Example
 
 <details>
@@ -38,7 +41,9 @@ import toktok
 static:
     Program.settings(
         uppercase = true,
-        prefix = "Tk_"
+        prefix = "Tk_",
+        allowUnknown = false,
+        keepUnknownChars = false
     )
 
 tokens:
