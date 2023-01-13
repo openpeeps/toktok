@@ -72,15 +72,18 @@ type
   CurrentProgram = object
     preferences*: tuple[
       uppercase: bool,
-      prefix: string
+      prefix: string,
+      allowUnknown: bool,
+      keepUnknownChars: bool
     ]
     tokens*: OrderedTable[string, TK]
 
 var Program* {.compileTime.} = CurrentProgram()
 
-proc settings*(program: var CurrentProgram, uppercase: bool, prefix = tkPrefix) {.compileTime.} =
+proc settings*(program: var CurrentProgram,
+  uppercase: bool, prefix = tkPrefix, allowUnknown, keepUnknownChars = false) {.compileTime.} =
   ## Change toktok settings at compile time using `static` block
-  program.preferences = (uppercase, prefix)
+  program.preferences = (uppercase, prefix, allowUnknown, keepUnknownChars)
 
 proc addToken(tk: NimNode, currToken: TK) {.compileTime.} =
   ## Adds a new token
@@ -209,6 +212,7 @@ template parseCurrentToken() =
 proc createTokenKindEnum(): NimNode {.compileTime.} =
   ## Generates the `TokenKind` enumeration
   var enumTokens: seq[NimNode] = @[]
+  enumTokens.add getIdent(tkUnknown)
   enumTokens.add getIdent(tkInteger)
   enumTokens.add getIdent(tkFloat)
   enumTokens.add getIdent(tkString)
@@ -431,14 +435,35 @@ proc createCaseStmt(): NimNode =
       newDotExpr(ident "lex", ident "bufpos")
     )
 
-  let caseOfElse = newStmtList(
-    newCall(
-      newDotExpr(ident("lex"), ident("setToken")),
-      getIdent tkUnknown,
-      newLit(1)
+  var caseOfElse: NimNode
+  if Program.preferences.keepUnknownChars:
+    caseOfElse = newStmtList(
+      newAssignment(
+        newDotExpr(ident "lex", ident "token"),
+        nnkPrefix.newTree(
+          ident "$",
+          nnkPar.newTree(
+            nnkBracketExpr.newTree(
+              newDotExpr(ident "lex", ident "buf"),
+              newDotExpr(ident "lex", ident "bufpos")
+            )
+          )
+        )
+      ),
+      newCall(
+        newDotExpr(ident("lex"), ident("setToken")),
+        getIdent tkUnknown,
+        newLit(1)
+      ),
     )
-  )
-
+  else:
+    caseOfElse = newStmtList(
+      newCall(
+        newDotExpr(ident("lex"), ident("setToken")),
+        getIdent tkUnknown,
+        newLit(1)
+      )
+    )
   newCaseStmt(caseOfIdent, branches, caseOfElse)
 
 proc createStrBasedCaseStmt(): NimNode =
@@ -469,7 +494,7 @@ macro tokens*(tks: untyped) =
   ## Generate tokens based on given identifiers
   ## and create the main `case statement` handler.
   clear(Program.tokens)
-  addToken getDefaultIdent(), TK(key: getDefaultIdent())
+  # addToken getDefaultIdent(), TK(key: getDefaultIdent())
   expectKind tks, nnkStmtList
   result = newStmtList()
   for tk in tks:
@@ -528,14 +553,15 @@ macro tokens*(tks: untyped) =
   )
 
   # Create `getToken` runtime procedure
-  template getTokenBody() =
+  template getTokenBody(allowUnknownTokens: bool, getTkUnknown) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
     skip lex
     let tokenVal = lex.buf[lex.bufpos]
     getMainCaseStmt(lex)
-    if lex.kind == TK_UNKNOWN:
-      lex.setError("Unexpected token: $1" % [$(tokenVal)])
+    if not allowUnknownTokens:
+      if lex.kind == getTkUnknown:
+        lex.setError("Unexpected token: $1" % [$(tokenVal)])
     (
       kind: lex.kind,
       value: lex.token,
@@ -552,9 +578,20 @@ macro tokens*(tks: untyped) =
     params = [
       ("lex", "Lexer", true)
     ],
-    body = getAst(getTokenBody())
+    body =
+      if Program.preferences.allowUnknown:
+        getAst getTokenBody(true.newLit, getIdent(tkUnknown))
+      else:
+        getAst getTokenBody(false.newLit, getIdent(tkUnknown))
   )
 
-  # TODO support Nim code generation and save the file
-  # to the current project by using `getProjectPath`
-  # echo result.repr
+  when defined toktokdebug:
+    # compile with -d:toktokdebug to show generated tokens
+    echo "------------ Tokens ------------"
+    echo indent(createTokenKindEnum().repr, 2)
+    
+    echo "\n", "------------ Main Case Handler ------------"
+    echo indent(createCaseStmt().repr, 2)
+    
+    echo "\n", "------------ Ident Case Handler ------------"
+    echo indent(createStrBasedCaseStmt().repr, 2)
