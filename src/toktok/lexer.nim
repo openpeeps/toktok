@@ -189,7 +189,7 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
       error("Call `tokenize()` for registering custom handlers. Example: `tokenize(myCustomProc, '$')`")
     expectKind tk[2][1], nnkIdent       # a custom identifier
     if tk[2][2].kind != nnkCharLit:
-      error("Custom tokenizers can only handle `nnkCharLit` values. $1 given" % [ $(tk[2][2].kind) ])
+      error("Expected `nnkCharLit` value. $1 given" % [ $(tk[2][2].kind) ])
     curr.tokenizer = (tk[2][1].strVal, char(tk[2][2].intVal))
     setInfixToken()
   elif tk.len == 4:
