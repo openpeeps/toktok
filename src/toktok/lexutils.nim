@@ -4,7 +4,7 @@
 #          George Lemon | Made by Humans from OpenPeep
 #          https://github.com/openpeep/toktok
 
-from std/strutils import Whitespace, `%`
+import std/strutils except NewLines
 
 proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrings = false): Lexer =
   ## Initialize a new BaseLexer instance with given Stream
@@ -172,24 +172,32 @@ proc setToken(lexer: var Lexer, tokenKind: TokenKind, offset = 1) =
 proc handleNumber(lex: var Lexer) =
   lex.startPos = lex.getColNumber(lex.bufpos)
   var toFloat: bool
+  var toString: bool
   while true:
     case lex.buf[lex.bufpos]
     of '0'..'9':
       add lex.token, lex.buf[lex.bufpos]
       inc lex.bufpos
     of 'a'..'z', 'A'..'Z', '_', '-':
-      lex.setError("Invalid number")
-      return
+      toString = true
+      add lex.token, lex.buf[lex.bufpos]
+      inc lex.bufpos
+      # lex.setError("Invalid number")
+      # return
     of '.':
-      if toFloat:
-        lex.setError("Invalid float number")
-        return
+      if toFloat: break
+        # lex.setError("Invalid float number")
+        # return
       toFloat = true
       add lex.token, lex.buf[lex.bufpos]
       inc lex.bufpos
     else:
-      if not toFloat: lex.kind = TK_INTEGER
-      else:           lex.kind = TK_FLOAT
+      if toFloat:
+        lex.kind = TK_FLOAT
+      elif toString:
+        lex.kind = TK_STRING
+      else:
+        lex.kind = TK_INTEGER
       break
 
 proc handleString[T: Lexer](lex: var T) =

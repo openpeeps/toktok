@@ -5,10 +5,9 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/toktok
 
-import std/[lexbase, streams, macros, tables]
+import std/[lexbase, streams, macros, strutils, tables]
 from std/sequtils import map
 from std/algorithm import reversed
-from std/strutils import `%`, replace, indent, toUpperAscii, startsWith, join, split
 export lexbase, streams
 
 var
