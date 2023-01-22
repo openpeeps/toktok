@@ -73,16 +73,22 @@ type
       uppercase: bool,
       prefix: string,
       allowUnknown: bool,
-      keepUnknownChars: bool
+      keepUnknownChars: bool,
+      handleCustomIdent: bool
     ]
     tokens*: OrderedTable[string, TK]
 
 var Program* {.compileTime.} = CurrentProgram()
 
 proc settings*(program: var CurrentProgram,
-  uppercase: bool, prefix = tkPrefix, allowUnknown, keepUnknownChars = false) {.compileTime.} =
+              uppercase: bool, prefix = tkPrefix,
+              allowUnknown, keepUnknownChars,
+              handleCustomIdent = false) {.compileTime.} =
   ## Change toktok settings at compile time using `static` block
-  program.preferences = (uppercase, prefix, allowUnknown, keepUnknownChars)
+  program.preferences = (
+    uppercase, prefix, allowUnknown,
+    keepUnknownChars, handleCustomIdent
+  )
 
 proc addToken(tk: NimNode, currToken: TK) {.compileTime.} =
   ## Adds a new token
@@ -481,9 +487,23 @@ proc createStrBasedCaseStmt(): NimNode =
     else: continue
 
   let caseOfIdent = newDotExpr(ident "lex", ident "token")
+
+  let elseBranch =
+    if not Program.preferences.handleCustomIdent:
+      newStmtList(getIdent(tkIdentDefault))
+    else:
+      newStmtList(
+        newCall(
+          newDotExpr(
+            ident "lex",
+            ident "handleCustomIdent"
+          )
+        )
+      )
+
   newAssignment(
     newDotExpr(ident "lex", ident "kind"),
-    newCaseStmt(caseOfIdent, branches, nnkStmtList.newTree(getIdent(tkIdentDefault)))
+    newCaseStmt(caseOfIdent, branches, elseBranch)
   )
 
 macro handlers*(customHandlers) =
@@ -531,18 +551,18 @@ macro tokens*(tks: untyped) =
   # Create `LexerException`
   result.add newObject(id = "LexerException", parent = "CatchableError", public = true)
 
+  # Include lexutils file
+  result.add newInclude("./lexutils")
+
+  if customTokTokHandlers.len != 0:
+    result.add customTokTokHandlers
+
   # Create `generateIdentCase` compile-time procedure
   result.add newProc(
     id = "generateIdentCase",
     params = [("lex", "Lexer", true)],
     body = createStrBasedCaseStmt()
   )
-
-  # Include lexutils file
-  result.add newInclude("./lexutils")
-
-  if customTokTokHandlers.len != 0:
-    result.add customTokTokHandlers
 
   # Create `getMainCaseStmt` compile-time procedure
   result.add newProc(

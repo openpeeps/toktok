@@ -20,6 +20,8 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrin
 const numbers = {'0'..'9'}
 const azAZ = {'a'..'z', 'A'..'Z', '_', '-'}
 
+proc generateIdentCase*(lex: var Lexer) # defer
+
 proc setError*(lex: var Lexer; message: string) =
   lex.kind = TK_UNKNOWN
   if lex.error.len == 0:
@@ -229,24 +231,6 @@ proc handleString[T: Lexer](lex: var T) =
       inc lex.bufpos
   if lex.multiLineStr:
     lex.lineNumber = lineno
-
-proc handleCustomIdent*[T: Lexer](lex: var T, kind: TokenKind) =
-  ## Handle variable declarations based the following char sets
-  ## ``{'a'..'z', 'A'..'Z', '_', '-'}`` and ``{'0'..'9'}``
-  lex.startPos = lex.getColNumber(lex.bufpos)
-  lex.token = ""
-  inc lex.bufpos
-  while true:
-    if lex.hasLetters(lex.bufpos):
-      add lex.token, lex.buf[lex.bufpos]
-      inc lex.bufpos
-    elif lex.hasNumbers(lex.bufpos):
-      add lex.token, lex.buf[lex.bufpos]
-      inc lex.bufpos
-    else:
-      dec lex.bufpos
-      break
-  lex.setToken kind
 
 proc handleIdent(lex: var Lexer) =
   ## Handle string-based identifiers
