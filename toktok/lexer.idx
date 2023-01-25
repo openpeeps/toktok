@@ -1,0 +1,17 @@
+openArrayParams	toktok/lexer.html#openArrayParams	lexer: openArrayParams	
+newImport	toktok/lexer.html#newImport,string	lexer: newImport(id: string): NimNode	
+newInclude	toktok/lexer.html#newInclude,string	lexer: newInclude(id: string): NimNode	
+newExclude	toktok/lexer.html#newExclude,string	lexer: newExclude(id: string): NimNode	
+newWhenStmt	toktok/lexer.html#newWhenStmt,tuple[NimNode,NimNode]	lexer: newWhenStmt(whenBranch: tuple[cond, body: NimNode]): NimNode	
+newWhenStmt	toktok/lexer.html#newWhenStmt,tuple[NimNode,NimNode],NimNode	lexer: newWhenStmt(whenBranch: tuple[cond, body: NimNode]; elseBranch: NimNode): NimNode	
+newCaseStmt	toktok/lexer.html#newCaseStmt,NimNode,openArray[tuple[NimNode,NimNode]]	lexer: newCaseStmt(caseNode: NimNode; branches: openArray[tuple[cond, body: NimNode]];\n            elseBranch = newEmptyNode()): NimNode	
+newExceptionStmt	toktok/lexer.html#newExceptionStmt,NimNode,NimNode	lexer: newExceptionStmt(exception: NimNode; msg: NimNode): NimNode	
+newObject	toktok/lexer.html#newObject,string,openArrayParams,string	lexer: newObject(id: string; fields: openArrayParams = []; parent = &quot;&quot;; public = false): NimNode	
+newTupleType	toktok/lexer.html#newTupleType,string,openArrayParams	lexer: newTupleType(id: string; fields: openArrayParams; public = false): NimNode	
+newProc	toktok/lexer.html#newProc,string,openArray[tuple[string,string,bool]]	lexer: newProc(id: string; params: openArray[tuple[k, t: string, vt: bool]];\n        public = false; returnType, body = newEmptyNode()): NimNode	
+newTemplate	toktok/lexer.html#newTemplate,string,openArray[tuple[string,string,bool]]	lexer: newTemplate(id: string; params: openArray[tuple[k, t: string, vt: bool]];\n            public = false; body = newEmptyNode()): NimNode	
+TK	toktok/lexer.html#TK	lexer: TK	
+Program	toktok/lexer.html#Program	lexer: Program	
+settings	toktok/lexer.html#settings,CurrentProgram,bool	lexer: settings(program: var CurrentProgram; uppercase: bool; prefix = tkPrefix;\n         allowUnknown, keepUnknownChars, handleCustomIdent = false)	
+handlers	toktok/lexer.html#handlers.m	lexer: handlers(customHandlers)	
+tokens	toktok/lexer.html#tokens.m,untyped	lexer: tokens(tks: untyped)	

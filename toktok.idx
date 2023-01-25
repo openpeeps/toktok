@@ -1,0 +1,14 @@
+TokenKind	index.html#TokenKind	toktok: TokenKind	
+TokenTuple	index.html#TokenTuple	toktok: TokenTuple	
+Lexer	index.html#Lexer	toktok: Lexer	
+LexerException	index.html#LexerException	toktok: LexerException	
+init	index.html#init,T,string	toktok: init[T: typedesc[Lexer]](lex: T; fileContents: string;\n                         allowMultilineStrings = false): Lexer	
+generateIdentCase	index.html#generateIdentCase,Lexer	toktok: generateIdentCase(lex: var Lexer)	
+setError	index.html#setError,Lexer,string	toktok: setError(lex: var Lexer; message: string)	
+hasError	index.html#hasError,Lexer	toktok: hasError(lex: Lexer): bool	
+getError	index.html#getError,Lexer	toktok: getError(lex: Lexer): string	
+hasLetters	index.html#hasLetters,Lexer,int	toktok: hasLetters(lex: var Lexer; pos: int): bool	
+hasNumbers	index.html#hasNumbers,Lexer,int	toktok: hasNumbers(lex: var Lexer; pos: int): bool	
+skip	index.html#skip,Lexer	toktok: skip(lex: var Lexer)	
+handleCustomIdent	index.html#handleCustomIdent,T,TokenKind	toktok: handleCustomIdent[T: Lexer](lex: var T; kind: TokenKind)	
+getToken	index.html#getToken,Lexer	toktok: getToken(lex: var Lexer): TokenTuple	
