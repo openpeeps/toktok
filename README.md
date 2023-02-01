@@ -39,36 +39,36 @@ const hello = 1 + 1
 import toktok
 
 static:
-    Program.settings(
-        uppercase = true,
-        prefix = "Tk_",
-        allowUnknown = false,
-        keepUnknownChars = false
-    )
+  Program.settings(
+    uppercase = true,
+    prefix = "Tk_",
+    allowUnknown = false,
+    keepUnknownChars = false
+  )
 
 tokens:
-    Plus      > '+'
-    Minus     > '-'
-    Multi     > '*'
-    Div       > '/':
-        BlockComment ? '*' .. "*/"
-        InlineComment ? '/' .. EOL
-    Assign      > '='
-    Var         > "var"
-    Let         > "let"
-    Const       > "const"
-    SetTrue     > {"TRUE", "True", "true", "YES", "Yes", "yes", "y"}
-    SetFalse    > {"FALSE", "False", "false", "NO", "No", "no", "n"}
+  Plus      > '+'
+  Minus     > '-'
+  Multi     > '*'
+  Div       > '/':
+    BlockComment ? '*' .. "*/"
+    InlineComment ? '/' .. EOL
+  Assign      > '='
+  Var         > "var"
+  Let         > "let"
+  Const       > "const"
+  SetTrue     > {"TRUE", "True", "true", "YES", "Yes", "yes", "y"}
+  SetFalse    > {"FALSE", "False", "false", "NO", "No", "no", "n"}
 
 when isMainModule:
-    var lex = Lexer.init(fileContents = readFile("sample.txt"))
-    if lex.hasError:
-        echo lex.getError
-    else:
-        while true:
-            var curr = lex.getToken()           # tuple[kind: TokenKind, value: string, wsno, col, line: int]
-            if curr.kind == TK_EOF: break
-            echo curr
+  var lex = Lexer.init(fileContents = readFile("sample.txt"))
+  if lex.hasError:
+    echo lex.getError
+  else:
+    while true:
+      var curr = lex.getToken()           # tuple[kind: TokenKind, value: string, wsno, col, line: int]
+      if curr.kind == TK_EOF: break
+      echo curr
 ```
 
 <details>
@@ -84,19 +84,6 @@ when isMainModule:
 ```
 
 </details>
-
-### Generate AST based on Tokens (Not implemented)
-Optionally, you can setup your AST nodes
-
-```nim
-ast:
-    Plus      > Infix
-    Minus     > Infix
-    Var       > Prefix
-    Let       > Prefix
-    Const     > Prefix
-    Identifier > Infix
-```
 
 ## Roadmap
 
