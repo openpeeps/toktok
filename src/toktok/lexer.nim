@@ -204,10 +204,6 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
       setInfixToken()
     elif tk[2][0].strVal == "tokenizeUnicode":
       expectKind tk[2][1], nnkStrLit
-      # let runes: seq[Rune] = toRunes(tk[2][1].strVal)
-      # echo runes[0] == Rune(0x0000221E)
-      # let s = runes[0].toUTF8
-      # s.toOpenArrayByte(0, s.high)
       curr.unicodeTokenizer.runes = tk[2][1].strVal
       curr.unicodeTokenizer.key = tkInfixIdent.strVal # keep original token
     else:
@@ -266,16 +262,6 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
     public = true,
     pure = true
   )
-
-# dumpAstGen:
-  # tuple[runes: seq[Rune], tk: TokenKind]
-  # (runes: myrunes, tk: tk)
-  # case x:
-  # of '\226':
-  #   if lex.buf[lex.bufpos + 1] == '\136':
-  #     if lex.buf[lex.bufpos + 2] == '\137':
-  #       echo "X"
-  #   echo "none"
 
 proc createCaseStmt(): NimNode =
   var branches: seq[tuple[cond, body: NimNode]]
