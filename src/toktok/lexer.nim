@@ -5,9 +5,12 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/toktok
 
-import std/[lexbase, streams, macros, strutils, tables]
+import std/[streams, macros, strutils, unicode, tables]
+import std/lexbase
+
 from std/sequtils import map
 from std/algorithm import reversed
+
 export lexbase, streams
 
 var
@@ -66,6 +69,7 @@ type
       of nnkCall, nnkCommand:
         ## Optionally, you can pass a custom tokenizer
         tokenizer: tuple[handler: string, charNode: char]
+        unicodeTokenizer: tuple[key: string, runes: string]
       else: discard
 
   CurrentProgram = object
@@ -74,20 +78,23 @@ type
       prefix: string,
       allowUnknown: bool,
       keepUnknownChars: bool,
-      handleCustomIdent: bool
+      handleCustomIdent: bool,
+      useUnicode: bool,
     ]
     tokens*: OrderedTable[string, TK]
 
 var Program* {.compileTime.} = CurrentProgram()
+var UnicodeTokenKeys {.compileTime.}: seq[string]
 
 proc settings*(program: var CurrentProgram,
               uppercase: bool, prefix = tkPrefix,
               allowUnknown, keepUnknownChars,
-              handleCustomIdent = false) {.compileTime.} =
+              handleCustomIdent, useUnicode = false) {.compileTime.} =
   ## Change toktok settings at compile time using `static` block
   program.preferences = (
     uppercase, prefix, allowUnknown,
-    keepUnknownChars, handleCustomIdent
+    keepUnknownChars, handleCustomIdent,
+    useUnicode
   )
 
 proc addToken(tk: NimNode, currToken: TK) {.compileTime.} =
@@ -189,14 +196,22 @@ proc parseInfixToken(tk: NimNode) {.compileTime.} =
     valueKind: tk[2].kind
   )
   if tk[2].kind in {nnkCall, nnkCommand}:
-    expectKind tk[2][0], nnkIdent
-    if tk[2][0].strVal != "tokenize":
+    if tk[2][0].strVal == "tokenize":
+      expectKind tk[2][1], nnkIdent       # a custom identifier
+      if tk[2][2].kind != nnkCharLit:
+        error("Expected `nnkCharLit` value. $1 given" % [ $(tk[2][2].kind) ])
+      curr.tokenizer = (tk[2][1].strVal, char(tk[2][2].intVal))
+      setInfixToken()
+    elif tk[2][0].strVal == "tokenizeUnicode":
+      expectKind tk[2][1], nnkStrLit
+      # let runes: seq[Rune] = toRunes(tk[2][1].strVal)
+      # echo runes[0] == Rune(0x0000221E)
+      # let s = runes[0].toUTF8
+      # s.toOpenArrayByte(0, s.high)
+      curr.unicodeTokenizer.runes = tk[2][1].strVal
+      curr.unicodeTokenizer.key = tkInfixIdent.strVal # keep original token
+    else:
       error("Call `tokenize()` for registering custom handlers. Example: `tokenize(myCustomProc, '$')`")
-    expectKind tk[2][1], nnkIdent       # a custom identifier
-    if tk[2][2].kind != nnkCharLit:
-      error("Expected `nnkCharLit` value. $1 given" % [ $(tk[2][2].kind) ])
-    curr.tokenizer = (tk[2][1].strVal, char(tk[2][2].intVal))
-    setInfixToken()
   elif tk.len == 4:
     expectKind tk[3], nnkStmtList
     setInfixTokenVariants()
@@ -252,6 +267,16 @@ proc createTokenKindEnum(): NimNode {.compileTime.} =
     pure = true
   )
 
+# dumpAstGen:
+  # tuple[runes: seq[Rune], tk: TokenKind]
+  # (runes: myrunes, tk: tk)
+  # case x:
+  # of '\226':
+  #   if lex.buf[lex.bufpos + 1] == '\136':
+  #     if lex.buf[lex.bufpos + 2] == '\137':
+  #       echo "X"
+  #   echo "none"
+
 proc createCaseStmt(): NimNode =
   var branches: seq[tuple[cond, body: NimNode]]
 
@@ -267,24 +292,34 @@ proc createCaseStmt(): NimNode =
           )
         ))
       elif tk.tokenType == TType.TEOL:
+        var elifBody = newStmtList()
+        elifBody.add(
+          newLetStmt(
+              ident "toEol",
+              newCall(
+                ident "nextToEOL",
+                ident "lex"
+              )
+          ),
+          newCall(
+            ident "setToken", ident "lex",
+            tk.key,
+            newDotExpr(ident "toEol", ident "pos"),
+            newDotExpr(ident "toEol", ident "initPos")
+          )
+        )
         branches.add((
           cond: newLit(tk.charNode),
-          body:
-            nnkCall.newTree(
-              newDotExpr(ident "lex", ident "setToken"),
-              tk.key,
-              newDotExpr(
-                newCall(newDotExpr(ident "lex", ident "nextToEOL")),
-                ident "pos"
-              ),
-            )
+          body: elifBody
         ))
       elif tk.tokenType == TType.TVariant:
         var 
           varBranches = nnkIfStmt.newTree()
           allChars = tk.variants
           skipSpecial = false
+          i = 1
         for v in reversed(tk.variants):
+          inc i
           var strChars: string
           if v.charNode.kind == nnkCharLit and v.tail == nil:
             # Handle char-based variants, for example:
@@ -306,25 +341,29 @@ proc createCaseStmt(): NimNode =
             #       lex.setToken(TK_INLINE_COMMENT, lex.nextToEOL().pos)
             if v.tail.tokenType == TEOL:
               skipSpecial = true
+              var elifBody = newStmtList()
+              elifBody.add(
+                newLetStmt(
+                    ident "toEol",
+                    newCall(
+                      ident "nextToEOL",
+                      ident "lex",
+                      newLit i,
+                    )
+                ),
+                newCall(
+                  ident "setToken", ident "lex",
+                  v.key,
+                  newDotExpr(ident "toEol", ident "pos"),
+                  newDotExpr(ident "toEol", ident "initPos")
+                )
+              )
               varBranches.add(
                 nnkElifBranch.newTree(
                   nnkCall.newTree(
                     ident "next", ident "lex", newLit(char(v.charNode.intVal))
                   ),
-                  newStmtList(
-                    nnkCall.newTree(
-                      newDotExpr(ident "lex", ident "setToken"),
-                      v.key,
-                      newDotExpr(
-                        newCall(
-                          ident "nextToEOL",
-                          ident "lex",
-                          newLit(2) # inc by offset
-                        ),
-                        ident "pos"
-                      )
-                    )
-                  )
+                  elifBody
                 )
               )
             elif v.tail.tokenType == TRange:
@@ -376,7 +415,9 @@ proc createCaseStmt(): NimNode =
           nnkElse.newTree(
             newStmtList(
               newCall(
-                ident("setToken"), ident("lex"), tk.key
+                ident("setToken"),
+                ident("lex"),
+                tk.key
               )
             )
           )
@@ -386,14 +427,19 @@ proc createCaseStmt(): NimNode =
           body: varBranches
         ))
     if tk.valueKind == nnkCall:
-      branches.add((
-        cond: newLit tk.tokenizer.charNode,
-        body: newStmtList(
-          newCall(
-            ident(tk.tokenizer.handler), ident("lex"), tk.key
+      if tk.tokenizer.handler.len != 0:
+        branches.add((
+          cond: newLit tk.tokenizer.charNode,
+          body: newStmtList(
+            newCall(
+              ident(tk.tokenizer.handler),
+              ident("lex"),
+              tk.key
+            )
           )
-        )
-      ))
+        ))
+      else:
+        UnicodeTokenKeys.add(tk.unicodeTokenizer.key)
     else: continue
 
   branches.add((
@@ -403,18 +449,33 @@ proc createCaseStmt(): NimNode =
       newTree(nnkInfix, ident(".."), newLit('A'), newLit('Z')),
       newLit('_')
     ),
-    body: newStmtList(newCall newDotExpr(ident "lex", ident "handleIdent"))
+    body: newStmtList(
+      newCall(
+        ident("handleIdent"),
+        ident("lex")
+      )
+    )
   ))
 
   branches.add((
     # {'0'..'9'}
     cond: nnkCurly.newTree(newTree(nnkInfix, ident(".."), newLit('0'), newLit('9'))),
-    body: newStmtList(newCall newDotExpr(ident "lex", ident "handleNumber"))
+    body: newStmtList(
+      newCall(
+        ident("handleNumber"),
+        ident("lex"),
+      )
+    )
   ))
 
   branches.add((
     cond: newLit('\"'),
-    body: newStmtList(newCall newDotExpr(ident "lex", ident "handleString"))
+    body: newStmtList(
+      newCall(
+        ident("handleString"),
+        ident("lex"),
+      )
+    )
   ))
 
   branches.add((
@@ -456,21 +517,57 @@ proc createCaseStmt(): NimNode =
         )
       ),
       newCall(
-        newDotExpr(ident("lex"), ident("setToken")),
+        ident("setToken"),
+        ident("lex"),
         getIdent tkUnknown,
         newLit(1)
       ),
     )
   else:
+    if Program.preferences.useUnicode:
+      if UnicodeTokenKeys.len != 0:
+        branches.add((
+          cond: newLit('\226'),
+          body: newStmtList(
+            newIfStmt((
+              cond:
+                nnkInfix.newTree(
+                  ident("=="),
+                  nnkBracketExpr.newTree(
+                    newDotExpr(
+                      ident("lex"),
+                      ident("buf")
+                    ),
+                    nnkInfix.newTree(
+                      ident("+"),
+                      newDotExpr(
+                        ident("lex"),
+                        ident("bufpos")
+                      ),
+                      newLit(1) # next char
+                    )
+                  ),
+                  newLit('\136')
+                ),
+              body: newStmtList(
+                newCall(
+                  ident("handleUnicode"),
+                  ident("lex")
+                )
+              )
+            ))
+          )
+        ))
     caseOfElse = newStmtList(
       newCall(
-        newDotExpr(ident("lex"), ident("setToken")),
+        ident("setToken"),
+        ident("lex"),
         getIdent tkUnknown,
         newLit(1)
       )
     )
-  newCaseStmt(caseOfIdent, branches, caseOfElse)
 
+  newCaseStmt(caseOfIdent, branches, caseOfElse)
 proc createStrBasedCaseStmt(): NimNode =
   var branches: seq[tuple[cond, body: NimNode]]
   for k, tk in pairs(Program.tokens):

@@ -5,25 +5,25 @@
 #          https://github.com/openpeep/toktok
 
 import std/strutils except NewLines
+import std/unicode
 
-proc init*[T: typedesc[Lexer]](lex: T; fileContents: string, allowMultilineStrings = false): Lexer =
+const azAZ = Letters + {'_', '-'}
+
+proc init*[L: Lexer](lex: typedesc[L]; fileContent: string, allowMultilineStrings = false): L =
   ## Initialize a new BaseLexer instance with given Stream
   var lex = Lexer()
-  open(lex, newStringStream(fileContents))
+  open(lex, newStringStream(fileContent))
   lex.startPos = 0
-  lex.kind = TK_UNKNOWN
+  lex.kind = TKUnknown
   lex.token = ""
   lex.error = ""
   lex.multiLineStr = allowMultilineStrings
   result = lex
 
-const numbers = {'0'..'9'}
-const azAZ = {'a'..'z', 'A'..'Z', '_', '-'}
-
 proc generateIdentCase*(lex: var Lexer) # defer
 
 proc setError*(lex: var Lexer; message: string) =
-  lex.kind = TK_UNKNOWN
+  lex.kind = TKUnknown
   if lex.error.len == 0:
     lex.error = message
 
@@ -42,7 +42,7 @@ proc handleNewLine(lex: var Lexer) =
   of '\n': lex.bufpos = lex.handleLF(lex.bufpos)
   else: discard
 
-proc inBuffer(lex: var Lexer, pos: int, chars:set[char]): bool =
+proc inBuffer(lex: var Lexer, pos: int, chars: set[char]): bool =
   try:
     result = lex.buf[pos] in chars
   except IndexDefect:
@@ -52,7 +52,7 @@ proc hasLetters*(lex: var Lexer, pos: int): bool =
   lex.inBuffer(pos, azAZ)
 
 proc hasNumbers*(lex: var Lexer, pos: int): bool =
-  lex.inBuffer(pos, numbers)
+  lex.inBuffer(pos, Digits)
 
 proc skip*(lex: var Lexer) =
   var wsno: int
@@ -83,22 +83,20 @@ proc setTokenMulti(lex: var Lexer, tokenKind: TokenKind, offset = 0, multichars 
     inc lex.bufpos, offset
   lex.kind = tokenKind
 
-proc nextToEOL(lex: var Lexer, offset = 1): tuple[pos: int, token: string] =
+proc nextToEOL(lex: var Lexer, offset = 1): tuple[pos, initPos: int, token: string] =
   ## Get entire buffer starting from given position to the end of line
-  inc lex.bufpos, offset
-  let wsno = lex.wsno
   let col = lex.getColNumber(lex.bufpos)  # TODO keep initial start position
+  inc lex.bufpos, offset
+  # let wsno = lex.wsno
   skip lex
   while true:
     case lex.buf[lex.bufpos]:
-    of NewLines: return
-    of EndOfFile: return
+    of NewLines, EndOfFile:
+      break
     else: 
       add lex.token, lex.buf[lex.bufpos]
       inc lex.bufpos
-  lex.wsno = wsno
-  lex.startPos = col
-  result = (pos: lex.bufpos, token: lex.token)
+  result = (pos: col, initPos: col, token: lex.token)
 
 proc handleSpecial(lex: var Lexer) =
   ## Procedure for for handling special escaping tokens
@@ -117,13 +115,13 @@ proc handleSpecial(lex: var Lexer) =
     lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
 
 proc next(lex: var Lexer, tkChar: char, offset = 1): bool =
-  # Determine if next char is as expected
-  # without modifying the current buffer
+  # Checking next char if is as expected without
+  # modifying the current buffer
   skip lex
   result = lex.buf[lex.bufpos + offset] in {tkChar}
 
-proc next(lex: var Lexer, chars:string): bool =
-  # Determine if next group of chars is
+proc next(lex: var Lexer, chars: string): bool =
+  # Checks next group of chars and determine if is
   # as expected without modifying the current buffer
   var i = 1
   var status = false
@@ -165,11 +163,16 @@ proc nextToSpec(lex: var Lexer, endChar: char, tokenKind: TokenKind, str = "") =
 proc nextToSpec(lex: var Lexer, endChar: string, tokenKind: TokenKind) =
   lex.nextToSpec(endChar[^1], tokenKind, endChar)
 
-proc setToken(lexer: var Lexer, tokenKind: TokenKind, offset = 1) =
+proc setToken(lex: var Lexer, tokenKind: TokenKind, offset = 1, initPos = - 1) =
   ## Set meta data for current token
-  lexer.kind = tokenKind
-  lexer.startPos = lexer.getColNumber(lexer.bufpos)
-  inc(lexer.bufpos, offset)
+  lex.kind = tokenKind
+  lex.startPos =
+    if initPos == -1:
+      lex.getColNumber(lex.bufpos)
+    else:
+      initPos
+      # lex.getColNumber(lex.bufpos) - lex.token.len # dirty fix
+  inc(lex.bufpos, offset)
 
 proc handleNumber(lex: var Lexer) =
   lex.startPos = lex.getColNumber(lex.bufpos)
@@ -195,11 +198,11 @@ proc handleNumber(lex: var Lexer) =
       inc lex.bufpos
     else:
       if toFloat:
-        lex.kind = TK_FLOAT
+        lex.kind = TKFloat
       elif toString:
-        lex.kind = TK_STRING
+        lex.kind = TKString
       else:
-        lex.kind = TK_INTEGER
+        lex.kind = TKInteger
       break
 
 proc handleString[T: Lexer](lex: var T) =
@@ -213,7 +216,7 @@ proc handleString[T: Lexer](lex: var T) =
       lex.handleSpecial()
       if lex.hasError(): return
     of '"':
-      lex.kind = TK_STRING
+      lex.kind = TKString
       inc lex.bufpos
       break
     of NewLines:
