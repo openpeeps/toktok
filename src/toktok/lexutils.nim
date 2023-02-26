@@ -5,7 +5,7 @@
 #          https://github.com/openpeep/toktok
 
 import std/strutils except NewLines
-import std/unicode
+# import std/unicode
 
 const azAZ = Letters + {'_', '-'}
 
