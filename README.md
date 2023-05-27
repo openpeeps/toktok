@@ -3,6 +3,12 @@
     Generic tokenizer written in Nim language, powered by Nim's Macros 👑
 </p>
 
+<p align="center">
+  <a href="https://openpeeps.github.io/toktok">API reference</a> <br>
+  <img src="https://github.com/openpeeps/toktok/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeeps/toktok/workflows/docs/badge.svg" alt="Github Actions">
+</p>
+
+
 ## 😍 Key Features
 - [x] Support `char`, `string`, `int` based tokens
 - [x] Powered by Nim's Macros ✨
