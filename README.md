@@ -1,7 +1,17 @@
 <p align="center">
     <img src="https://raw.githubusercontent.com/openpeep/toktok/main/.github/logo.png" width="140px"><br>
-    Generic tokenizer written in Nim language, powered by Nim's Macros 👑
+    Generic tokenizer written in Nim language, powered by Nim's Macros 👑   
 </p>
+
+<p align="center">
+  <code>nimble install toktok</code>
+</p>
+
+<p align="center">
+  <a href="https://openpeeps.github.io/toktok">API reference</a> <br><br>
+  <img src="https://github.com/openpeeps/toktok/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeeps/toktok/workflows/docs/badge.svg" alt="Github Actions">
+</p>
+
 
 ## 😍 Key Features
 - [x] Support `char`, `string`, `int` based tokens
@@ -15,11 +25,6 @@
 
 Toktok is a generic Lexer, based on standard Nim libraries `streams`, `lexbase` and `macros`.
 It is meant to be used by higher level parsers for writing any kind of tools or programs.
-
-## Installing
-```bash
-nimble install toktok
-```
 
 ## Debug
 Compile with `-d:toktokdebug` to print your tokens
@@ -85,24 +90,14 @@ when isMainModule:
 
 </details>
 
-## Roadmap
+<a href="https://hetzner.cloud/?ref=Hm0mYGM9NxZ4"><img src="https://openpeep.ro/banners/openpeep-footer.png" width="100%"></a>
 
-#### 0.1.0
-- [ ] Add tests
-
-### 0.2.0
-_todo_
-
-### ❤ Contributions
-If you like this project you can contribute to Toktok by opening new issues, fixing bugs, contribute with code, ideas and you can even [donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C) 🥰
-
-### 👑 Discover Nim language
-<strong>What's Nim?</strong> Nim is a statically typed compiled systems programming language. It combines successful concepts from mature languages like Python, Ada and Modula. [Find out more about Nim language](https://nim-lang.org/)
-
-<strong>Why Nim?</strong> Performance, fast compilation and C-like freedom. We want to keep code clean, readable, concise, and close to our intention. Also a very good language to learn in 2022.
+### ❤ Contributions & Support
+- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/toktok/issues)
+- 👋 Wanna help? [Fork it!](https://github.com/openpeeps/toktok/fork)
+- 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
+- 🥰 [Donate to The Enthusiast via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
-Toktok is an Open Source Software released under `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
-Copyright &copy; 2022 OpenPeep & Contributors &mdash; All rights reserved.
-
-<a href="https://hetzner.cloud/?ref=Hm0mYGM9NxZ4"><img src="https://openpeep.ro/banners/openpeep-footer.png" width="100%"></a>
+`toktok` | `MIT` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+Copyright &copy; 2023 OpenPeeps & Contributors &mdash; All rights reserved.
