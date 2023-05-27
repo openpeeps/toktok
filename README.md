@@ -1,10 +1,14 @@
 <p align="center">
     <img src="https://raw.githubusercontent.com/openpeep/toktok/main/.github/logo.png" width="140px"><br>
-    Generic tokenizer written in Nim language, powered by Nim's Macros 👑
+    Generic tokenizer written in Nim language, powered by Nim's Macros 👑   
 </p>
 
 <p align="center">
-  <a href="https://openpeeps.github.io/toktok">API reference</a> <br>
+  <code>nimble install toktok</code>
+</p>
+
+<p align="center">
+  <a href="https://openpeeps.github.io/toktok">API reference</a> <br><br>
   <img src="https://github.com/openpeeps/toktok/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeeps/toktok/workflows/docs/badge.svg" alt="Github Actions">
 </p>
 
@@ -21,11 +25,6 @@
 
 Toktok is a generic Lexer, based on standard Nim libraries `streams`, `lexbase` and `macros`.
 It is meant to be used by higher level parsers for writing any kind of tools or programs.
-
-## Installing
-```bash
-nimble install toktok
-```
 
 ## Debug
 Compile with `-d:toktokdebug` to print your tokens
