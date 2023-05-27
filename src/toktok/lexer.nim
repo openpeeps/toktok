@@ -103,14 +103,14 @@ proc addToken(tk: NimNode, currToken: TK) {.compileTime.} =
 
 proc getIdent(id: NimNode): NimNode {.compileTime.} =
   ## Returns an identifier
-  if Program.preferences.uppercase:
-    if Program.preferences.prefix.len != 0:
-      return ident toUpperAscii(tkPrefix & id.strVal)
-    return ident toUpperAscii(id.strVal)
-
   if Program.preferences.prefix.len != 0:
-    return ident tkPrefix & id.strVal
-  result = ident(id.strVal)
+    tkPrefix = Program.preferences.prefix 
+
+  var tkIdent = tkPrefix & id.strVal
+  if Program.preferences.uppercase:
+    result = ident toUpperAscii(tkIdent)
+  else:
+    result = ident tkIdent
 
 proc getIdent(id: string): NimNode {.compileTime.} =
   ## Retrieve an identifier based on given string
@@ -633,6 +633,33 @@ macro tokens*(tks: untyped) =
 
   # Create `LexerException`
   result.add newObject(id = "LexerException", parent = "CatchableError", public = true)
+
+  var getDefaultTokenIf = nnkIfStmt.newTree()
+  for defaultTk in [
+        (tkUnknown, "unknown"),
+        (tkString, "string"),
+        (tkInteger, "integer"),
+        (tkFloat, "float"),
+        (tkEof, "eof")
+    ]:
+    getDefaultTokenIf.add(
+      nnkElifBranch.newTree(
+        nnkInfix.newTree(ident("=="), ident("strtk"), newLit(defaultTk[1])),
+        newStmtList(
+          newAssignment(
+            ident("result"),
+            getIdent(defaultTk[0])
+          )
+        )
+      )
+    )
+  result.add newProc(
+    id = "getDefaultToken",
+    params = [("strtk", "string", false)],
+    public = true,
+    body = getDefaultTokenIf,
+    returnType = ident("TokenKind")
+  )
 
   # Include lexutils file
   result.add newInclude("./lexutils")

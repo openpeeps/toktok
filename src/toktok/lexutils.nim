@@ -5,7 +5,6 @@
 #          https://github.com/openpeep/toktok
 
 import std/strutils except NewLines
-# import std/unicode
 
 const azAZ = Letters + {'_', '-'}
 
@@ -14,7 +13,7 @@ proc init*[L: Lexer](lex: typedesc[L]; fileContent: string, allowMultilineString
   var lex = Lexer()
   open(lex, newStringStream(fileContent))
   lex.startPos = 0
-  lex.kind = TKUnknown
+  lex.kind = getDefaultToken("unknown")
   lex.token = ""
   lex.error = ""
   lex.multiLineStr = allowMultilineStrings
@@ -22,8 +21,22 @@ proc init*[L: Lexer](lex: typedesc[L]; fileContent: string, allowMultilineString
 
 proc generateIdentCase*(lex: var Lexer) # defer
 
+proc ready*(lex: var Lexer) =
+  lex.startPos = lex.getColNumber(lex.bufpos)
+  setLen(lex.token, 0)
+
+proc inc*(lex: var Lexer, offset = 1) =
+  inc lex.bufpos, offset
+
+proc token*(lex: var Lexer): char =
+  result = lex.buf[lex.bufpos]
+
+proc add*(lex: var Lexer) =
+  add lex.token, lex.buf[lex.bufpos]
+  inc lex
+
 proc setError*(lex: var Lexer; message: string) =
-  lex.kind = TKUnknown
+  lex.kind = getDefaultToken("unknown")
   if lex.error.len == 0:
     lex.error = message
 
@@ -198,11 +211,11 @@ proc handleNumber(lex: var Lexer) =
       inc lex.bufpos
     else:
       if toFloat:
-        lex.kind = TKFloat
+        lex.kind = getDefaultToken("float")
       elif toString:
-        lex.kind = TKString
+        lex.kind = getDefaultToken("string")
       else:
-        lex.kind = TKInteger
+        lex.kind = getDefaultToken("integer")
       break
 
 proc handleString[T: Lexer](lex: var T) =
@@ -216,7 +229,7 @@ proc handleString[T: Lexer](lex: var T) =
       lex.handleSpecial()
       if lex.hasError(): return
     of '"':
-      lex.kind = TKString
+      lex.kind = getDefaultToken("string")
       inc lex.bufpos
       break
     of NewLines:
