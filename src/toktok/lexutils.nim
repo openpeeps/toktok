@@ -21,14 +21,14 @@ proc init*[L: Lexer](lex: typedesc[L]; fileContent: string, allowMultilineString
 
 proc generateIdentCase*(lex: var Lexer) # defer
 
-proc ready*(lex: var Lexer) =
+proc lexReady*(lex: var Lexer) =
   lex.startPos = lex.getColNumber(lex.bufpos)
   setLen(lex.token, 0)
 
 proc inc*(lex: var Lexer, offset = 1) =
   inc lex.bufpos, offset
 
-proc token*(lex: var Lexer): char =
+proc current*(lex: var Lexer): char =
   result = lex.buf[lex.bufpos]
 
 proc add*(lex: var Lexer) =
