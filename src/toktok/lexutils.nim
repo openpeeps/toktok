@@ -19,7 +19,7 @@ proc init*[L: Lexer](lex: typedesc[L]; fileContent: string, allowMultilineString
   lex.multiLineStr = allowMultilineStrings
   result = lex
 
-proc generateIdentCase*(lex: var Lexer) # defer
+proc handleIdentCase*(lex: var Lexer) # defer
 
 proc lexReady*(lex: var Lexer) =
   lex.startPos = lex.getColNumber(lex.bufpos)
@@ -81,16 +81,27 @@ proc skip*(lex: var Lexer) =
       lex.wsno = wsno
       return
 
-proc setTokenMulti(lex: var Lexer, tokenKind: TokenKind, offset = 0, multichars = 0) =
-  ## Set meta data of the current token and jump to the next one
+proc setToken(lex: var Lexer, tokenKind: TokenKind, offset = 1, initPos = - 1) =
+  ## Set meta data for current token
+  lex.kind = tokenKind
+  lex.startPos =
+    if initPos == -1:
+      lex.getColNumber(lex.bufpos)
+    else:
+      initPos
+      # lex.getColNumber(lex.bufpos) - lex.token.len # dirty fix
+  inc(lex.bufpos, offset)
+
+proc setTokenGroup(lex: var Lexer, tokenKind: TokenKind, offset = 0, multichars = 0) =
+  ## Set token with multiple characters
   skip lex
   lex.startPos = lex.getColNumber(lex.bufpos)
-  var items = 0
+  var i = 0
   if multichars != 0:
-    while items < multichars:
+    while i < multichars:
       add lex.token, lex.buf[lex.bufpos]
       inc lex.bufpos
-      inc items
+      inc i
   else:
     add lex.token, lex.buf[lex.bufpos]
     inc lex.bufpos, offset
@@ -127,11 +138,11 @@ proc handleSpecial(lex: var Lexer) =
   else:
     lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
 
-proc next(lex: var Lexer, tkChar: char, offset = 1): bool =
+proc next(lex: var Lexer, ch: char, offset = 1): bool =
   # Checking next char if is as expected without
   # modifying the current buffer
   skip lex
-  result = lex.buf[lex.bufpos + offset] in {tkChar}
+  result = lex.buf[lex.bufpos + offset] in {ch}
 
 proc next(lex: var Lexer, chars: string): bool =
   # Checks next group of chars and determine if is
@@ -175,17 +186,6 @@ proc nextToSpec(lex: var Lexer, endChar: char, tokenKind: TokenKind, str = "") =
 
 proc nextToSpec(lex: var Lexer, endChar: string, tokenKind: TokenKind) =
   lex.nextToSpec(endChar[^1], tokenKind, endChar)
-
-proc setToken(lex: var Lexer, tokenKind: TokenKind, offset = 1, initPos = - 1) =
-  ## Set meta data for current token
-  lex.kind = tokenKind
-  lex.startPos =
-    if initPos == -1:
-      lex.getColNumber(lex.bufpos)
-    else:
-      initPos
-      # lex.getColNumber(lex.bufpos) - lex.token.len # dirty fix
-  inc(lex.bufpos, offset)
 
 proc handleNumber(lex: var Lexer) =
   lex.startPos = lex.getColNumber(lex.bufpos)
@@ -234,7 +234,7 @@ proc handleString[T: Lexer](lex: var T) =
       break
     of NewLines:
       if lex.multiLineStr:
-        add lex.token, "\\\\n"
+        # add lex.token, "\n"
         inc lex.bufpos
       else:
         lex.setError("EOL reached before end of string")
@@ -249,7 +249,7 @@ proc handleString[T: Lexer](lex: var T) =
     lex.lineNumber = lineno
 
 proc handleCustomIdent*[T: Lexer](lex: var T, kind: TokenKind) =
-  ## Handle variable declarations based the following char sets
+  ## Handle variable declarations based on the following sets:
   ## ``{'a'..'z', 'A'..'Z', '_', '-'}`` and ``{'0'..'9'}``
   lex.startPos = lex.getColNumber(lex.bufpos)
   lex.token = ""
@@ -279,4 +279,4 @@ proc handleIdent(lex: var Lexer) =
       inc lex.bufpos
     else: break
   # skip lex
-  lex.generateIdentCase()           # template defined in toktok
+  lex.handleIdentCase()           # template defined in toktok

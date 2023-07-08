@@ -46,7 +46,7 @@ proc newExceptionStmt*(exception: NimNode, msg: NimNode): NimNode =
 
 proc newObject*(id: string, fields: openArrayParams = [], parent = "", public = false): NimNode =
   ## Create a new object
-  result = newNimNode nnkTypeSection
+  # result = newNimNode nnkTypeSection
   var fieldDefs = newEmptyNode()
   if fields.len != 0:
     fieldDefs = newNimNode nnkRecList
@@ -58,7 +58,7 @@ proc newObject*(id: string, fields: openArrayParams = [], parent = "", public = 
   let fromParent =
     if parent.len != 0: nnkOfInherit.newTree(ident parent)
             else: newEmptyNode()      
-  result.add(
+  result =
     nnkTypeDef.newTree(
       objectIdent,
       newEmptyNode(),
@@ -68,11 +68,10 @@ proc newObject*(id: string, fields: openArrayParams = [], parent = "", public = 
         fieldDefs 
       )
     )
-  )
 
 proc newTupleType*(id: string, fields: openArrayParams, public = false): NimNode =
   ## Creates a new tuple type
-  result = newNimNode nnkTypeSection
+  # result = newNimNode nnkTypeSection
   let tupleIdent =
     if public: nnkPostfix.newTree(ident "*", ident id)
        else: ident id
@@ -80,21 +79,28 @@ proc newTupleType*(id: string, fields: openArrayParams, public = false): NimNode
   if fields.len != 0:
     tupleIdentDefs = nnkTupleTy.newTree()
     for field in fields:
-      tupleIdentDefs.add(
-        nnkIdentDefs.newTree(
-          ident field.k,
-          ident field.t,
-          newEmptyNode()
+      if field.k.contains("|"):
+        var defs = nnkIdentDefs.newTree()
+        for f in field.k.split("|"):
+          defs.add(ident(f))
+        defs.add(ident(field.t))
+        defs.add(newEmptyNode())
+        tupleIdentDefs.add(defs)
+      else:
+        tupleIdentDefs.add(
+          nnkIdentDefs.newTree(
+            ident field.k,
+            ident field.t,
+            newEmptyNode()
+          )
         )
-      )
 
-  result.add(
+  result = 
     nnkTypeDef.newTree(
       tupleIdent,
       newEmptyNode(),
       tupleIdentDefs
     )
-  )
 
 proc newProc*(id: string, params: openarray[tuple[k,t: string, vt: bool]],
       public = false, returnType, body = newEmptyNode()): NimNode =
