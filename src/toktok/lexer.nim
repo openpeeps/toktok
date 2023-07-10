@@ -16,24 +16,29 @@ type
     tString
     tChar
     tRange
-    tEol
     tVariant
+    tSet
+    tHandler
+    tDeferred
 
   TKNode* = ref object
     ident: NimNode
       ## Token identifier
     case tkType: TKType
     of tString:
-      strTk: string
+      stringToken: string
     of tChar:
-      charTk: BiggestInt # converted to `char` later
+      charToken: BiggestInt # converted to `char` later
     of tRange:
-      vrange: tuple[x, y: NimNode]
-    of tEol:
-      lineTk: TKNode
+      rangeToken: tuple[x, y: NimNode]
     of tVariant:
       vFirst: TKNode
       vOthers: seq[TKNode]
+    of tSet:
+      sets: NimNode # type of nnkBracket
+    of tHandler:
+      handlerName, handlerToken: NimNode
+    else: discard
 
   TokenModifierCallback* = proc(tkName, tkPrefix: string): string
   Settings* = object
@@ -78,53 +83,75 @@ proc newTKNode(tok: var Tokenizer, tkIdent: NimNode, tkValue: NimNode): TKNode {
   case tkValue.kind:
   of nnkCharLit:
     # Register char-based tokens
-    result = TKNode(tkType: tChar, ident: tkIdent, charTk: tkValue.intVal)
+    result = TKNode(tkType: tChar, ident: tkIdent, charToken: tkValue.intVal)
   of nnkStrLit:
     # Register string-based token identifiers
-    result = TKNode(tkType: tString, ident: tkIdent, strTk: tkValue.strVal)
+    result = TKNode(tkType: tString, ident: tkIdent, stringToken: tkValue.strVal)
+  of nnkBracket:
+    for tkv in tkValue:
+      if tkv.kind != nnkStrLit: error("Invalid set", tkV)
+    result = TKNode(tkType: tSet, ident: tkIdent, sets: tkValue)
   of nnkCall:
+    # Register custom handlers when calling `tokenize(myHandler, '/')`
+    # 
+    # Otherwise, register char/string based variants.
+    # Variants are useful when there are multiple tokens 
+    # prefixed by the same character.
+    #
+    # A good example is `/` and `//`. The second is a common token
+    # for single-line comments.
+    #
+    # Note that, variants are parsed in a reverse mode.
+    # This built-n handler produce something similar with:
+    # of '/':
+    #   if next(lex, "//"): # ///
+    #     setTokenGroup(lex, tkTripleInlineComment, 0, 3)
+    #   elif next(lex, '/'): # //
+    #     setTokenGroup(lex, tkInlineComment, 0, 2)
+    #   else: tkDivide
     case tkValue[0].kind
     of nnkCharLit:
       expectKind(tkValue[1], nnkStmtList)
-      var vFirst = TKNode(tkType: tChar, ident: tkIdent, charTk: tkValue[0].intVal)
+      var vFirst = TKNode(tkType: tChar, ident: tkIdent, charToken: tkValue[0].intVal)
       result = TKNode(tkType: tVariant, ident: tkIdent, vFirst: vFirst)
       for vToken in tkValue[1]:
         add result.vOthers, tok.newTKNode(vToken[0], vToken[1])
     of nnkStrLit:
       expectKind(tkValue[1], nnkStmtList)
-      var vFirst = TKNode(tkType: tString, ident: tkIdent, strTk: tkValue[0].strVal)
+      var vFirst = TKNode(tkType: tString, ident: tkIdent, stringToken: tkValue[0].strVal)
       result = TKNode(tkType: tVariant, ident: tkIdent)
-      # echo result.ident
       for vToken in tkValue[1]:
         add result.vOthers, (tok.newTKNode(vToken[0], vToken[1]))
     of nnkIdent:
-      # Handle variant-based tokens, something similar with
-      # ...
-      # of '/':
-      #   if next(lex, '/'): tkInlineComment
-      #   else: tkDivide
-      echo tkValue.treeRepr()
-      echo tkValue.kind
-      # Register custom based handlers
-    else:
-      error("Failed to register token node: " & $tkValue[0].kind, tkValue[0])
+      if tkValue.len != 3:
+        error("Invalid custom handler")
+      if tkValue[0].eqIdent("tokenize"):
+        result = TKNode(tkType: tHandler, ident: tkIdent,
+                      handlerName: ident(tkValue[1].strVal), handlerToken: tkValue[2])
+      else: error("Use either `tokenize(mySlashHandle, '/')`, or `tokenizeUnicode(mySlashHandle, '/')` for adding custom handlers")
+    else: error("Failed to register token node: " & $tkValue[0].kind, tkValue[0])
   of nnkInfix:
+    # Tokenize ranges. Anything from `X` to `Y`.
+    #
+    # Use `EOL` to collect all characters from buffer from X to end of line.
+    # This may be useful for implementing handlers dealing with inline comments
+    #
     if tkValue[0].eqIdent(".."):
       let x =
-        if tkValue[1].kind == nnkCharLit:   newLit($(char(tkValue[1].intVal)))
-        elif tkValue[1].kind == nnkStrLit:  tkValue[1]
+        if tkValue[1].kind in {nnkCharLit, nnkStrLit, nnkIntLit}:
+          tkValue[1]
         else:
           error("Invalid token range for X. Expect nnkCharLit or nnkStrLit", tkValue[1])
           newLit("")
       let y = 
-        if tkValue[2].kind == nnkCharLit:   newLit($(char(tkValue[2].intVal)))
-        elif tkValue[2].kind == nnkStrLit:  tkValue[2]
+        if tkValue[2].kind in {nnkCharLit, nnkStrLit, nnkIntLit}:
+          tkValue[2]
         elif tkValue[2].kind == nnkIdent and eqIdent(tkValue[2], "EOL"):
           newEmptyNode() # not necessary, just to add a node here
         else:
           error("Invalid token range for Y. Expect nnkCharLit, nnkStrLit or EOL", tkValue[2])
           newLit("")
-      result = TKNode(tkType: tRange, ident: tkIdent, vrange: (x, y))
+      result = TKNode(tkType: tRange, ident: tkIdent, rangeToken: (x, y))
     else:
       error("Failed to register a range token. Valid example: `'/' .. EOL`", tkValue[0])
   else:
@@ -136,10 +163,6 @@ proc newTKNode(tok: var Tokenizer, tkIdent: NimNode, tkValue: NimNode): TKNode {
 #
 include ./macroutils
 
-#
-# A public compile-time macro
-# to register tokens in a fancy way
-#
 proc addField*(tkEnum: var NimNode, enumType: NimNode) =
   tkEnum.add(newEmptyNode(), enumType)
 
@@ -169,9 +192,8 @@ proc handleNextToken(tok: var Tokenizer, tkIdent, tkLit: NimNode, tkLitLen: int)
     )
   )
 
-proc handleNextTokenEndOfLine(tok: var Tokenizer, tkIdent, tkLit: NimNode, offset: int): NimNode {.compileTime.} =
-  nnkElifBranch.newTree(
-    newCall(ident("next"), ident("lex"), tkLit),
+proc handleXtoEOL(tok: var Tokenizer, tkIdent, tkLit: NimNode, offset: int, wrapCond = true): NimNode {.compileTime.} =
+  let x =
     newStmtList(
       newLetStmt(
         ident("toEOL"),
@@ -183,65 +205,78 @@ proc handleNextTokenEndOfLine(tok: var Tokenizer, tkIdent, tkLit: NimNode, offse
         newDotExpr(ident("toEol"), ident("initPos"))
       )
     )
-  )
+  if wrapCond:
+    nnkElifBranch.newTree(
+      newCall(ident("next"), ident("lex"), tkLit),
+      x
+    )
+  else:
+    nnkStmtList.newTree(x)
 
 template handleVarBranch(branch: var NimNode) =
   tkNode.vOthers.reverse()
   for vOther in tkNode.vOthers:
     case vOther.tkType
     of tString:
-      tkEnum.addField(tok.getIdent(vOther.ident), newLit(vOther.strTK))
-      add branch, tok.handleNextToken(vOther.ident, newLit(vOther.strTK), vOther.strTK.len)
+      tkEnum.addField(tok.getIdent(vOther.ident))
+      add branch, tok.handleNextToken(vOther.ident, newLit(vOther.stringToken), vOther.stringToken.len)
     of tChar:
       tkEnum.addField(tok.getIdent(vOther.ident))
-      add branch, tok.handleNextToken(vOther.ident, newLit(char(vOther.charTK)), 1)
+      add branch, tok.handleNextToken(vOther.ident, newLit(char(vOther.charToken)), 1)
     of tRange:
       tkEnum.addField(tok.getIdent(vOther.ident))
-      if vOther.vrange.x.kind == nnkStrLit:
-        if vOther.vrange.y.kind == nnkEmpty:
+      if vOther.rangeToken.x.kind == nnkCharLit:
+        if vOther.rangeToken.y.kind == nnkEmpty:
+          # Handle Ranges, from X char to end of line (X .. EOL)
+          branch.add(tok.handleXtoEOL(vOther.ident, vOther.rangeToken.x, 1))  
+      elif vOther.rangeToken.x.kind == nnkStrLit:
+        if vOther.rangeToken.y.kind == nnkEmpty:
           # Handle Ranges, from X string to end of line (X .. EOL)
-          add branch,
-            tok.handleNextTokenEndOfLine(vOther.ident, vOther.vrange.x, len(vOther.vrange.x.strVal))
-        discard
+          branch.add(tok.handleXtoEOL(vOther.ident, vOther.rangeToken.x, len(vOther.rangeToken.x.strVal)))
     else: discard
-  branch.add(
-    nnkElse.newTree(
-      newStmtList(
-        newCall(
-          ident("setToken"),
-          ident("lex"),
-          tok.getIdent(tkNode.vFirst.ident)
-        )
-      )
-    )
+  let callElseBranch = newCall(ident("setToken"), ident("lex"), tok.getIdent(tkNode.vFirst.ident))
+  branch.add(nnkElse.newTree(newStmtList(callElseBranch)))
+
+macro handlers*(custom: untyped) =
+  ##Define your own handlers. For example:
+  ##```nim
+  ##  proc handleClass(lex: var Lexer, kind: TokenKind) =
+  ##    # your code
+  ##```
+  expectKind(custom, nnkStmtList)
+  customHandlers = custom
+
+const defaultSettings* =
+  Settings(
+    tkPrefix: "tk",
+    tkModifier: defaultTokenModifier,      
+    enableKeepUnknown: true,
+    enableCustomIdent: false
   )
 
-macro handlers*(cHandlers) =
-  customHandlers = cHandlers
 
 macro registerTokens*(settings: static Settings, tokens: untyped) =
-  var tok = Tokenizer(tokens: newOrderedTable[string, TKNode](), settings: settings)
-  let tokenKindEnumName = tKindEnumName.strVal
-  
   tokens.expectKind(nnkStmtList)
+  var
+    tok = Tokenizer(tokens: newOrderedTable[string, TKNode](), settings: settings)
+    tkEnum = newNimNode(nnkEnumTy)
+    mainBranches, identBranches: seq[tuple[cond, body: NimNode]]
+    getDefaultTokenCondBody = nnkIfStmt.newTree()
+  let tokenKindEnumName = tKindEnumName.strVal
   for tk in tokens:
     case tk.kind
     of nnkAsgn:
-      var node: TKNode
+      # handle known tokens (assigned value) 
       case tk[0].kind:
       of nnkIdent:
         tok.tokens[tk[0].strVal] = tok.newTKNode(tk[0], tk[1])
       of nnkAccQuoted:
         tok.tokens[tk[0][0].strVal] = tok.newTKNode(tk[0][0], tk[1])
       else: error("Invalid token. Expect `nnkIdent` or `nnkAccQuoted`. Got `" & $tk.kind & "`", tk[0])
-    else:
-      discard
-
-  var
-    tkEnum = newNimNode(nnkEnumTy)
-    mainBranches, identBranches: seq[tuple[cond, body: NimNode]]
-    getDefaultTokenCondBody = nnkIfStmt.newTree()
-
+    of nnkIdent:
+      # handle deferred tokens
+      tok.tokens[tk.strVal] = TKNode(tkType: tDeferred, ident: tk)
+    else: discard
   # define default fields for TokenKind enum
   for default in [(tkUnknown, "unknown"), (tkInt, "integer"), (tkFloat, "float"),
                 (tkStr, "string"), (tkIdentDefault, "identifier"), (tkEOFStr, "EOF")]:
@@ -261,41 +296,45 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         )
       )
     )
-
   tok.tokens.sort(system.cmp) # sort enum by name A-Z
   for name, tkNode in tok.tokens:
     # Generate a `TokenKind` enumeration we store all tokens.
     #
     # Optionally, you can switch to hash tables,
     # which allows you to create dynamic tokenizers
-    var tkIdent = tok.getIdent(newLit name)
+    var tkIdent = tok.getIdent(tkNode.ident)
     case tkNode.tkType
     of tString:
-      tkEnum.addField(tkIdent, newLit(tkNode.strTk))
+      tkEnum.addField(tkIdent)
       identBranches.add((
-        newLit(tkNode.strTk),
-        newStmtList(tok.getIdent(tkNode.ident))
+        newLit(tkNode.stringToken),
+        newStmtList(tkIdent)
       ))
     of tChar:
-      tkEnum.addField(tok.getIdent(newLit name))
+      tkEnum.addField(tkIdent)
       mainBranches.add((
-        newLit(char(tkNode.charTk)),
-        newCall(
+        cond: newLit(char(tkNode.charToken)),
+        body: newCall(
           newDotExpr(ident("lex"), ident("setToken")),
           tkIdent,
           newLit(1)
         )
       ))
+    of tSet:
+      tkEnum.addField(tkIdent)
+      identBranches.add((
+        cond: tkNode.sets,
+        body: tkIdent
+      ))
     of tVariant:
+      tkEnum.addField(tkIdent)
       case tkNode.vFirst.tkType
       of tString:
-        tkEnum.addField(tkIdent, newLit(tkNode.vFirst.strTk))
         var variantBranches = newNimNode(nnkIfStmt)
         variantBranches.handleVarBranch()
         identBranches.add((
-          newLit(tkNode.vFirst.strTk),
-          variantBranches
-          # newStmtList(tok.getIdent(tkNode.vFirst.ident))
+          cond: newLit(tkNode.vFirst.stringToken),
+          body: variantBranches
         ))
       of tChar:
         # Handle char-based variants, for example:
@@ -304,18 +343,34 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         #     setTokenGroup(lex, TK_EQ, 2, 2)
         #   else:
         #     setToken(lex, TK_ASSIGN)
-        tkEnum.addField(tkIdent)
         var variantBranches = newNimNode(nnkIfStmt)
         variantBranches.handleVarBranch()
         mainBranches.add((
-          newLit(char(tkNode.vFirst.charTk)),
-          variantBranches
+          cond: newLit(char(tkNode.vFirst.charToken)),
+          body: variantBranches
         ))
       else: discard
     of tRange:
-      echo "X"
-    of tEOL:
-      discard
+      tkEnum.addField(tkIdent)
+      if tkNode.rangeToken.x.kind == nnkCharLit:
+        var cond = newNimNode(nnkIfStmt)
+        mainBranches.add((
+          cond: newLit(char(tkNode.rangeToken.x.intVal)),
+          body: tok.handleXtoEOL(tkNode.ident, tkNode.rangeToken.x, 0, false)
+        ))
+    of tHandler:
+      tkEnum.addField(tkIdent)
+      if tkNode.handlerToken.kind == nnkCharLit:
+        # add custom handler to the main case statement
+        mainBranches.add((
+          cond: newLit(char(tkNode.handlerToken.intVal)),
+          body: newCall(tkNode.handlerName, ident("lex"), tkIdent)
+        ))
+      else:
+        # a string based custom handler
+        discard
+    of tDeferred:
+      tkEnum.addField(tkIdent)
 
   var typeSection = newNimNode(nnkTypeSection)
   add typeSection,
@@ -330,7 +385,6 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       newEmptyNode(),
       tkEnum
     )
-
   add typeSection,
     newTupleType(
       "TokenTuple", public = true,
@@ -340,13 +394,9 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         ("wsno|line|col|pos", "int")
       ]
     )
-
   # Create `Lexer` object from `BaseLexer` with fields
   add typeSection,
-    newObject(
-      id = "Lexer",
-      parent = "BaseLexer",
-      public = true,
+    newObject(id = "Lexer", parent = "BaseLexer", public = true,
       fields = [
         ("kind", tokenKindEnumName),
         ("token", "string"),
@@ -356,16 +406,9 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         ("multiLineStr", "bool")
       ]
     )
-
   # Create `LexerException`
-  typeSection.add(
-    newObject("LexerException", parent = "CatchableError", public = true))
-
-  let caseOfChar =
-    nnkBracketExpr.newTree(
-      newDotExpr(ident "lex", ident "buf"),
-      newDotExpr(ident "lex", ident "bufpos")
-    )
+  typeSection.add(newObject("LexerException", parent = "CatchableError", public = true))
+  let caseOfChar = nnkBracketExpr.newTree(newDotExpr(ident("lex"), ident("buf")), newDotExpr(ident("lex"), ident("bufpos")))
   # Handle {'a'..'z', 'A'..'Z', '_'}
   mainBranches.add((
     cond: nnkCurly.newTree(
@@ -373,35 +416,27 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       newTree(nnkInfix, ident(".."), newLit('A'), newLit('Z')),
       newLit('_')
     ),
-    body: newStmtList(
-      newCall(
-        ident("handleIdent"),
-        ident("lex")
-      )
-    )
+    body: newStmtList(newCall(ident("handleIdent"), ident("lex")))
   ))
-
   # Handle {'0'..'9'}
   mainBranches.add((
     cond: nnkCurly.newTree(newTree(nnkInfix, ident(".."), newLit('0'), newLit('9'))),
     body: newStmtList(newCall(ident("handleNumber"), ident("lex")))
   ))
-
   # Handle "double quote strings"
   mainBranches.add((
     cond: newLit('\"'),
     body: newStmtList(newCall(ident("handleString"), ident("lex")))
   ))
-
   # Handle EOF
   mainBranches.add((
     cond: ident "EndOfFile",
     body: newStmtList(
       newAssignment(
-        newDotExpr(ident "lex", ident "startPos"),
+        newDotExpr(ident("lex"), ident("startPos")),
         newCall(
-          newDotExpr(ident "lex", ident "getColNumber"),
-          newDotExpr(ident "lex", ident "bufpos"),
+          newDotExpr(ident("lex"), ident("getColNumber")),
+          newDotExpr(ident("lex"), ident("bufpos")),
         )
       ),
       newAssignment(
@@ -410,15 +445,11 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       )
     )
   ))
-
   let caseOfElse =
     newStmtList(
       newCall(
         newDotExpr(ident("lex"), ident("setToken")),
-        newDotExpr(
-          ident(tokenKindEnumName),
-          getIdent(tok, newLit tkUnknown)
-        )
+        newDotExpr(ident(tokenKindEnumName), getIdent(tok, newLit(tkUnknown)))
       )
     )
 
@@ -433,9 +464,8 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
   )
   # Include ./lexutils
   result.add newInclude("./lexutils")
-  if customHandlers.len != 0:
+  if customHandlers.len > 0:
     result.add customHandlers
-
   # Create `handleIdentCase` compile-time procedure
   let caseOfIdent = newDotExpr(ident "lex", ident "token")
   let identElseBranch = newStmtList(tok.getIdent(newLit tkIdentDefault))
@@ -454,36 +484,13 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     body = newCaseStmt(caseOfChar, mainBranches, caseOfElse)
   )
   # Create `getToken` runtime procedure
-  template getTokenBody(allowUnknownTokens: bool, getTkUnknown): untyped =
-    lex.startPos = getColNumber(lex, lex.bufpos)
-    setLen(lex.token, 0)
-    skip lex
-    # let tokenVal = lex.buf[lex.bufpos]
-    handleMainCase(lex)
-    # if not allowUnknownTokens:
-    #   if lex.kind == getTkUnknown:
-    #     lex.setError("Unexpected token: $1" % [$(tokenVal)])
-    result = (
-      kind: lex.kind,
-      value: lex.token,
-      wsno: lex.wsno,
-      line: lex.lineNumber,
-      col: lex.startPos,
-      pos: lex.startPos,
-    )
-
   var tupleConstr = nnkTupleConstr.newTree()
   for tp in [("kind", "kind"), ("value", "token"), ("wsno", "wsno"),
             ("line", "lineNumber"), ("col", "startPos"), ("pos", "startPos")]:
-    add tupleConstr,
-      nnkExprColonExpr.newTree(
-        ident(tp[0]),
-        newDotExpr(
-          ident("lex"),
-          ident(tp[1])
-        )
-      )
-
+    var dotExpr = newDotExpr(ident("lex"), ident(tp[1]))
+    if tp[0] == "col":
+      dotExpr = nnkInfix.newTree(ident("+"), dotExpr, newLit(1)) # + 1 to col field to reflect IDE
+    add tupleConstr, nnkExprColonExpr.newTree(ident(tp[0]), dotExpr)
   result.add newProc(
     id = "getToken",
     public = true,

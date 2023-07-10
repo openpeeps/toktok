@@ -139,14 +139,13 @@ proc handleSpecial(lex: var Lexer) =
     lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
 
 proc next(lex: var Lexer, ch: char, offset = 1): bool =
-  # Checking next char if is as expected without
-  # modifying the current buffer
+  ## Check next char without modifying bufpos
   skip lex
-  result = lex.buf[lex.bufpos + offset] in {ch}
+  try: result = lex.buf[lex.bufpos + offset] in {ch}
+  except IndexDefect: discard
 
 proc next(lex: var Lexer, chars: string): bool =
-  # Checks next group of chars and determine if is
-  # as expected without modifying the current buffer
+  # Check next characters without modifying bufpos
   var i = 1
   var status = false
   for c in chars:
@@ -188,9 +187,10 @@ proc nextToSpec(lex: var Lexer, endChar: string, tokenKind: TokenKind) =
   lex.nextToSpec(endChar[^1], tokenKind, endChar)
 
 proc handleNumber(lex: var Lexer) =
+  # Handle integers and float numbers
+  setLen(lex.token, 0)
   lex.startPos = lex.getColNumber(lex.bufpos)
-  var toFloat: bool
-  var toString: bool
+  var toString, toFloat: bool
   while true:
     case lex.buf[lex.bufpos]
     of '0'..'9':
@@ -200,13 +200,16 @@ proc handleNumber(lex: var Lexer) =
       toString = true
       add lex.token, lex.buf[lex.bufpos]
       inc lex.bufpos
-      # lex.setError("Invalid number")
-      # return
     of '.':
       if toFloat: break
-        # lex.setError("Invalid float number")
-        # return
-      toFloat = true
+      try:
+        if lex.buf[lex.bufpos + 1] in {'0'..'9'}:
+          toFloat = true
+        else:
+          lex.kind = getDefaultToken("integer")
+          break
+      except IndexDefect:
+        toString = true
       add lex.token, lex.buf[lex.bufpos]
       inc lex.bufpos
     else:
@@ -219,8 +222,9 @@ proc handleNumber(lex: var Lexer) =
       break
 
 proc handleString[T: Lexer](lex: var T) =
+  # Handle strings
   lex.startPos = lex.getColNumber(lex.bufpos)
-  lex.token = ""
+  setLen(lex.token, 0)
   let lineno = lex.lineNumber
   inc lex.bufpos
   while true:
@@ -248,24 +252,6 @@ proc handleString[T: Lexer](lex: var T) =
   if lex.multiLineStr:
     lex.lineNumber = lineno
 
-proc handleCustomIdent*[T: Lexer](lex: var T, kind: TokenKind) =
-  ## Handle variable declarations based on the following sets:
-  ## ``{'a'..'z', 'A'..'Z', '_', '-'}`` and ``{'0'..'9'}``
-  lex.startPos = lex.getColNumber(lex.bufpos)
-  lex.token = ""
-  inc lex.bufpos
-  while true:
-    if lex.hasLetters(lex.bufpos):
-      add lex.token, lex.buf[lex.bufpos]
-      inc lex.bufpos
-    elif lex.hasNumbers(lex.bufpos):
-      add lex.token, lex.buf[lex.bufpos]
-      inc lex.bufpos
-    else:
-      dec lex.bufpos
-      break
-  lex.setToken kind
-
 proc handleIdent(lex: var Lexer) =
   ## Handle string-based identifiers
   lex.startPos = lex.getColNumber(lex.bufpos)
@@ -279,4 +265,4 @@ proc handleIdent(lex: var Lexer) =
       inc lex.bufpos
     else: break
   # skip lex
-  lex.handleIdentCase()           # template defined in toktok
+  lex.handleIdentCase() # generated with macros
