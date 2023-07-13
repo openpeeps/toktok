@@ -93,22 +93,7 @@ proc newTKNode(tok: var Tokenizer, tkIdent: NimNode, tkValue: NimNode): TKNode {
     result = TKNode(tkType: tSet, ident: tkIdent, sets: tkValue)
   of nnkCall:
     # Register custom handlers when calling `tokenize(myHandler, '/')`
-    # 
     # Otherwise, register char/string based variants.
-    # Variants are useful when there are multiple tokens 
-    # prefixed by the same character.
-    #
-    # A good example is `/` and `//`. The second is a common token
-    # for single-line comments.
-    #
-    # Note that, variants are parsed in a reverse mode.
-    # This built-n handler produce something similar with:
-    # of '/':
-    #   if next(lex, "//"): # ///
-    #     setTokenGroup(lex, tkTripleInlineComment, 0, 3)
-    #   elif next(lex, '/'): # //
-    #     setTokenGroup(lex, tkInlineComment, 0, 2)
-    #   else: tkDivide
     case tkValue[0].kind
     of nnkCharLit:
       expectKind(tkValue[1], nnkStmtList)
@@ -254,7 +239,6 @@ const defaultSettings* =
     enableCustomIdent: false
   )
 
-
 macro registerTokens*(settings: static Settings, tokens: untyped) =
   tokens.expectKind(nnkStmtList)
   var
@@ -276,6 +260,8 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     of nnkIdent:
       # handle deferred tokens
       tok.tokens[tk.strVal] = TKNode(tkType: tDeferred, ident: tk)
+    of nnkAccQuoted:
+      tok.tokens[tk[0].strVal] = TKNode(tkType: tDeferred, ident: tk[0])
     else: discard
   # define default fields for TokenKind enum
   for default in [(tkUnknown, "unknown"), (tkInt, "integer"), (tkFloat, "float"),
@@ -389,21 +375,24 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     newTupleType(
       "TokenTuple", public = true,
       fields = [
-        ("kind", tokenKindEnumName),
-        ("value", "string"),
-        ("wsno|line|col|pos", "int")
+        ("kind", ident(tokenKindEnumName)),
+        ("value", ident("string")),
+        ("wsno|line|col|pos", ident("int")),
+        ("attr", nnkBracketExpr.newTree(ident("seq"), ident("string")))
       ]
     )
+
   # Create `Lexer` object from `BaseLexer` with fields
   add typeSection,
     newObject(id = "Lexer", parent = "BaseLexer", public = true,
       fields = [
-        ("kind", tokenKindEnumName),
-        ("token", "string"),
-        ("error", "string"),
-        ("startPos", "int"),
-        ("wsno", "int"),
-        ("multiLineStr", "bool")
+        ("kind", ident(tokenKindEnumName)),
+        ("token", ident("string")),
+        ("attr", nnkBracketExpr.newTree(ident("seq"), ident("string"))),
+        ("error", ident("string")),
+        ("startPos", ident("int")),
+        ("wsno", ident("int")),
+        ("multiLineStr", ident("bool"))
       ]
     )
   # Create `LexerException`
@@ -446,12 +435,34 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     )
   ))
   let caseOfElse =
-    newStmtList(
-      newCall(
-        newDotExpr(ident("lex"), ident("setToken")),
-        newDotExpr(ident(tokenKindEnumName), getIdent(tok, newLit(tkUnknown)))
+    if tok.settings.enableKeepUnknown:
+      newStmtList(
+        newAssignment(
+          newDotExpr(ident "lex", ident "token"),
+          nnkPrefix.newTree(
+            ident "$",
+            nnkPar.newTree(
+              nnkBracketExpr.newTree(
+                newDotExpr(ident "lex", ident "buf"),
+                newDotExpr(ident "lex", ident "bufpos")
+              )
+            )
+          )
+        ),
+        newCall(
+          ident("setToken"),
+          ident("lex"),
+          getIdent(tok, newLit(tkUnknown)),
+          newLit(1)
+        ),
       )
-    )
+    else:
+      newStmtList(
+        newCall(
+          newDotExpr(ident("lex"), ident("setToken")),
+          newDotExpr(ident(tokenKindEnumName), getIdent(tok, newLit(tkUnknown)))
+        )
+      )
 
   result = newStmtList()
   result.add typeSection
@@ -462,13 +473,20 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     body = getDefaultTokenCondBody,
     returnType = ident(tokenKindEnumName)
   )
+  
   # Include ./lexutils
   result.add newInclude("./lexutils")
+  
   if customHandlers.len > 0:
     result.add customHandlers
+  
   # Create `handleIdentCase` compile-time procedure
   let caseOfIdent = newDotExpr(ident "lex", ident "token")
-  let identElseBranch = newStmtList(tok.getIdent(newLit tkIdentDefault))
+  let identElseBranch =
+    if tok.settings.enableCustomIdent:
+      newStmtList(newCall(newDotExpr(ident("lex"), ident("handleCustomIdent"))))
+    else:
+      newStmtList(tok.getIdent(newLit tkIdentDefault))
   result.add newProc(
     id = "handleIdentCase",
     params = [("lex", "Lexer", true)],
@@ -486,28 +504,64 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
   # Create `getToken` runtime procedure
   var tupleConstr = nnkTupleConstr.newTree()
   for tp in [("kind", "kind"), ("value", "token"), ("wsno", "wsno"),
-            ("line", "lineNumber"), ("col", "startPos"), ("pos", "startPos")]:
+            ("line", "lineNumber"), ("col", "startPos"), ("pos", "startPos"), ("attr", "attr")]:
     var dotExpr = newDotExpr(ident("lex"), ident(tp[1]))
     if tp[0] == "col":
       dotExpr = nnkInfix.newTree(ident("+"), dotExpr, newLit(1)) # + 1 to col field to reflect IDE
     add tupleConstr, nnkExprColonExpr.newTree(ident(tp[0]), dotExpr)
-  result.add newProc(
+  var getTokenStmt =
+    nnkStmtList.newTree(
+      newAssignment(
+        newDotExpr(ident("lex"), ident("startPos")),
+        newCall(ident("getColNumber"), ident("lex"), newDotExpr(ident("lex"), ident("bufpos")))
+      ),
+      newCall(
+        ident("setLen"),
+        newDotExpr(ident("lex"), ident("token")),
+        newLit(0)
+      ),
+      newCall(ident("skip"), ident("lex"))
+    )
+  getTokenStmt.add(newCall(ident("handleMainCase"), ident("lex")))
+  if not tok.settings.enableKeepUnknown:
+    getTokenStmt.add(
+      newLetStmt(
+        ident("unknownToken"),
+        nnkBracketExpr.newTree(
+          newDotExpr(ident("lex"), ident("buf")),
+          newDotExpr(ident("lex"), ident("bufpos")),
+        )
+      )
+    )
+    getTokenStmt.add(
+      newIfStmt(
+        (
+          nnkInfix.newTree(
+            ident("=="),
+            newDotExpr(ident("lex"), ident("kind")),
+            getIdent(tok, newLit(tkUnknown))
+          ),
+          newCall(
+            ident("setError"),
+            ident("lex"),
+            nnkInfix.newTree(
+              ident("%"), newLit("Unexpected token $1"),
+              nnkBracket.newTree(
+                nnkPrefix.newTree(ident("$"), ident("unknownToken"))
+              )
+            )
+          )
+        )
+    ))
+  getTokenStmt.add(nnkReturnStmt.newTree(tupleConstr))
+  result.add(newProc(
     id = "getToken",
     public = true,
     returnType = ident("TokenTuple"),
     params = [
       ("lex", "Lexer", true)
     ],
-    newStmtList(
-      newAssignment(
-        newDotExpr(ident("lex"), ident("startPos")),
-        newCall(ident("getColNumber"), ident("lex"), newDotExpr(ident("lex"), ident("bufpos")))
-      ),
-      newCall(ident("skip"), ident("lex")),
-      newCall(ident("setLen"), newDotExpr(ident("lex"), ident("token")), newLit(0)),
-      newCall(ident("handleMainCase"), ident("lex")),
-      nnkReturnStmt.newTree(tupleConstr)
-    )
-  )
+    getTokenStmt
+  ))
   when defined toktokdebug:
     echo result.repr

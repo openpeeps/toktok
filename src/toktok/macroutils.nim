@@ -1,4 +1,4 @@
-type openArrayParams* = openarray[tuple[k,t: string]]
+type openArrayParams* = openarray[tuple[k: string, t: NimNode]]
 
 proc newImport*(id: string): NimNode =
   result = newNimNode(nnkImportStmt)
@@ -51,7 +51,7 @@ proc newObject*(id: string, fields: openArrayParams = [], parent = "", public = 
   if fields.len != 0:
     fieldDefs = newNimNode nnkRecList
     for f in fields:
-      fieldDefs.add(nnkIdentDefs.newTree(ident f.k, ident f.t, newEmptyNode()))
+      fieldDefs.add(nnkIdentDefs.newTree(ident f.k, f.t, newEmptyNode()))
   let objectIdent =
     if public: nnkPostfix.newTree(ident "*", ident id)
        else: ident(id)
@@ -83,14 +83,14 @@ proc newTupleType*(id: string, fields: openArrayParams, public = false): NimNode
         var defs = nnkIdentDefs.newTree()
         for f in field.k.split("|"):
           defs.add(ident(f))
-        defs.add(ident(field.t))
+        defs.add(field.t)
         defs.add(newEmptyNode())
         tupleIdentDefs.add(defs)
       else:
         tupleIdentDefs.add(
           nnkIdentDefs.newTree(
             ident field.k,
-            ident field.t,
+            field.t,
             newEmptyNode()
           )
         )

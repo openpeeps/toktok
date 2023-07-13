@@ -23,7 +23,7 @@ proc handleIdentCase*(lex: var Lexer) # defer
 
 proc lexReady*(lex: var Lexer) =
   lex.startPos = lex.getColNumber(lex.bufpos)
-  setLen(lex.token, 0)
+  setLen(lex.token, 0); setLen(lex.attr, 0)
 
 proc inc*(lex: var Lexer, offset = 1) =
   inc lex.bufpos, offset
