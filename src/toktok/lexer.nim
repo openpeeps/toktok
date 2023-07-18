@@ -44,7 +44,7 @@ type
   Settings* = object
     tkModifier*: TokenModifierCallback
     tkPrefix*: string 
-    enableKeepUnknown*, enableCustomIdent*: bool
+    enableKeepUnknown*, enableCustomIdent*, keepChar*: bool
 
   Tokenizer = object
     settings: Settings
@@ -201,15 +201,16 @@ proc handleXtoEOL(tok: var Tokenizer, tkIdent, tkLit: NimNode, offset: int, wrap
 template handleVarBranch(branch: var NimNode) =
   tkNode.vOthers.reverse()
   for vOther in tkNode.vOthers:
+    let id = tok.getIdent(vOther.ident)
     case vOther.tkType
     of tString:
-      tkEnum.addField(tok.getIdent(vOther.ident))
+      tkEnum.addField(id)
       add branch, tok.handleNextToken(vOther.ident, newLit(vOther.stringToken), vOther.stringToken.len)
     of tChar:
-      tkEnum.addField(tok.getIdent(vOther.ident))
+      tkEnum.addField(id)
       add branch, tok.handleNextToken(vOther.ident, newLit(char(vOther.charToken)), 1)
     of tRange:
-      tkEnum.addField(tok.getIdent(vOther.ident))
+      tkEnum.addField(id)
       if vOther.rangeToken.x.kind == nnkCharLit:
         if vOther.rangeToken.y.kind == nnkEmpty:
           # Handle Ranges, from X char to end of line (X .. EOL)
@@ -218,7 +219,27 @@ template handleVarBranch(branch: var NimNode) =
         if vOther.rangeToken.y.kind == nnkEmpty:
           # Handle Ranges, from X string to end of line (X .. EOL)
           branch.add(tok.handleXtoEOL(vOther.ident, vOther.rangeToken.x, len(vOther.rangeToken.x.strVal)))
-    else: discard
+    of tHandler:
+      tkEnum.addField(id)
+      if vOther.handlerToken.kind == nnkCharLit:
+        # add custom handler to the main case statement
+        branch.add(
+          nnkElifBranch.newTree(
+            newCall(
+              ident("next"),
+              ident("lex"),
+              vOther.handlerToken
+            ),
+            newStmtList(
+              newCall(vOther.handlerName, ident("lex"), id)
+            )
+          )
+        )
+      else:
+        # a string based custom handler
+        echo "todo"
+    else: 
+      echo "todo"
   let callElseBranch = newCall(ident("setToken"), ident("lex"), tok.getIdent(tkNode.vFirst.ident))
   branch.add(nnkElse.newTree(newStmtList(callElseBranch)))
 
@@ -236,7 +257,8 @@ const defaultSettings* =
     tkPrefix: "tk",
     tkModifier: defaultTokenModifier,      
     enableKeepUnknown: true,
-    enableCustomIdent: false
+    enableCustomIdent: false,
+    keepChar: false
   )
 
 macro registerTokens*(settings: static Settings, tokens: untyped) =
@@ -287,7 +309,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     # Generate a `TokenKind` enumeration we store all tokens.
     #
     # Optionally, you can switch to hash tables,
-    # which allows you to create dynamic tokenizers
+    # which allows you to create tokenizers at runtime
     var tkIdent = tok.getIdent(tkNode.ident)
     case tkNode.tkType
     of tString:
@@ -298,13 +320,28 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       ))
     of tChar:
       tkEnum.addField(tkIdent)
-      mainBranches.add((
-        cond: newLit(char(tkNode.charToken)),
-        body: newCall(
+      var mainCharBody = newNimNode(nnkStmtList)
+      if tok.settings.keepChar:
+        mainCharBody.add(
+          nnkCommand.newTree(
+            ident("add"),
+            newDotExpr(ident("lex"), ident("token")),
+            nnkBracketExpr.newTree(
+              newDotExpr(ident("lex"), ident("buf")),
+              newDotExpr(ident("lex"), ident("bufpos")),
+            )
+          )
+        )
+      mainCharBody.add(
+        newCall(
           newDotExpr(ident("lex"), ident("setToken")),
           tkIdent,
           newLit(1)
-        )
+        ),
+      )
+      mainBranches.add((
+        cond: newLit(char(tkNode.charToken)),
+        body: mainCharBody
       ))
     of tSet:
       tkEnum.addField(tkIdent)
@@ -316,6 +353,12 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       tkEnum.addField(tkIdent)
       case tkNode.vFirst.tkType
       of tString:
+        # Handle string-based variants:
+        # of "public":
+        #   if next(lex, "class"):
+        #     setTokenGroup(lex, tkPubClass, 11, 11)
+        #   elif next(lex, "function"):
+        #     setTokenGroup(lex, tkPubFn, 14, 14)
         var variantBranches = newNimNode(nnkIfStmt)
         variantBranches.handleVarBranch()
         identBranches.add((
@@ -326,9 +369,9 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         # Handle char-based variants, for example:
         # of '=':
         #   if next(lex, "="):
-        #     setTokenGroup(lex, TK_EQ, 2, 2)
+        #     setTokenGroup(lex, tkEQ, 2, 2)
         #   else:
-        #     setToken(lex, TK_ASSIGN)
+        #     setToken(lex, tkAssgn)
         var variantBranches = newNimNode(nnkIfStmt)
         variantBranches.handleVarBranch()
         mainBranches.add((
