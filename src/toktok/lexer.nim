@@ -6,10 +6,14 @@
 #     https://github.com/openpeeps 
 
 import std/lexbase except NewLines
-import std/[macros, strutils, sequtils,
+import std/[macros, os, strutils, sequtils,
           tables, unicode, algorithm, streams]
 
 export lexbase, streams
+
+const
+  toktokStatic {.strdefine.} = ""
+  getLexerStaticPath = getProjectPath() / normalizedPath(toktokStatic)
 
 type
   TKType = enum
@@ -44,7 +48,23 @@ type
   Settings* = object
     tkModifier*: TokenModifierCallback
     tkPrefix*: string 
-    enableKeepUnknown*, enableCustomIdent*, keepChar*: bool
+    keepUnknown*: bool
+      ## Whether to keep unknown tokens (default false).
+      ## This is useful when building a Markdown parser (for example)
+    enableCustomIdent*: bool
+      ## If enabled you can bring your own string-based handler
+    enableStaticGen: bool
+      ## Generate a static `lexer.nim` file (default false)
+      ## Use `-d:toktokStatic` to (re)generate lexer file.
+      ## Useful in case you don't want `toktok` package
+      ## to run every time you build your program.
+      ##
+      ## Also, due to toktok limitations, you may want to
+      ## go deeper and extend the generated lexer manually.
+      ##
+      ## **Important!** Running `-d:toktokStatic` will overwrite
+      ## your existing `lexer.nim`. Be careful
+    keepChar*: bool
 
   Tokenizer = object
     settings: Settings
@@ -219,9 +239,10 @@ template handleVarBranch(branch: var NimNode) =
         if vOther.rangeToken.y.kind == nnkEmpty:
           # Handle Ranges, from X string to end of line (X .. EOL)
           branch.add(tok.handleXtoEOL(vOther.ident, vOther.rangeToken.x, len(vOther.rangeToken.x.strVal)))
+      else: discard # todo make it work from X .. Y
     of tHandler:
       tkEnum.addField(id)
-      if vOther.handlerToken.kind == nnkCharLit:
+      if vOther.handlerToken.kind in {nnkCharLit, nnkStrLit}:
         # add custom handler to the main case statement
         branch.add(
           nnkElifBranch.newTree(
@@ -235,16 +256,14 @@ template handleVarBranch(branch: var NimNode) =
             )
           )
         )
-      else:
-        # a string based custom handler
-        echo "todo"
+      else: discard
     else: 
       echo "todo"
   let callElseBranch = newCall(ident("setToken"), ident("lex"), tok.getIdent(tkNode.vFirst.ident))
   branch.add(nnkElse.newTree(newStmtList(callElseBranch)))
 
 macro handlers*(custom: untyped) =
-  ##Define your own handlers. For example:
+  ## Define your own handlers. For example:
   ##```nim
   ##  proc handleClass(lex: var Lexer, kind: TokenKind) =
   ##    # your code
@@ -256,9 +275,10 @@ const defaultSettings* =
   Settings(
     tkPrefix: "tk",
     tkModifier: defaultTokenModifier,      
-    enableKeepUnknown: true,
     enableCustomIdent: false,
-    keepChar: false
+    enableStaticGen: toktokStatic.len > 0,
+    keepUnknown: true,
+    keepChar: false,
   )
 
 macro registerTokens*(settings: static Settings, tokens: untyped) =
@@ -351,6 +371,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       ))
     of tVariant:
       tkEnum.addField(tkIdent)
+      var variantBranches = newNimNode(nnkIfStmt)
       case tkNode.vFirst.tkType
       of tString:
         # Handle string-based variants:
@@ -359,7 +380,6 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         #     setTokenGroup(lex, tkPubClass, 11, 11)
         #   elif next(lex, "function"):
         #     setTokenGroup(lex, tkPubFn, 14, 14)
-        var variantBranches = newNimNode(nnkIfStmt)
         variantBranches.handleVarBranch()
         identBranches.add((
           cond: newLit(tkNode.vFirst.stringToken),
@@ -372,7 +392,6 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         #     setTokenGroup(lex, tkEQ, 2, 2)
         #   else:
         #     setToken(lex, tkAssgn)
-        var variantBranches = newNimNode(nnkIfStmt)
         variantBranches.handleVarBranch()
         mainBranches.add((
           cond: newLit(char(tkNode.vFirst.charToken)),
@@ -478,7 +497,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     )
   ))
   let caseOfElse =
-    if tok.settings.enableKeepUnknown:
+    if tok.settings.keepUnknown:
       newStmtList(
         newAssignment(
           newDotExpr(ident "lex", ident "token"),
@@ -566,7 +585,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       newCall(ident("skip"), ident("lex"))
     )
   getTokenStmt.add(newCall(ident("handleMainCase"), ident("lex")))
-  if not tok.settings.enableKeepUnknown:
+  if not tok.settings.keepUnknown:
     getTokenStmt.add(
       newLetStmt(
         ident("unknownToken"),
@@ -606,5 +625,10 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     ],
     getTokenStmt
   ))
+
   when defined toktokdebug:
     echo result.repr
+  when defined toktokStatic:
+    if toktokStatic.endsWith(".nim"):
+      # todo import necessary modules from std
+      writeFile(getLexerStaticPath, result.repr)

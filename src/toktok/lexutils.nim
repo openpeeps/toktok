@@ -94,7 +94,6 @@ proc setToken(lex: var Lexer, tokenKind: TokenKind, offset = 1, initPos = - 1) =
 
 proc setTokenGroup(lex: var Lexer, tokenKind: TokenKind, offset = 0, multichars = 0) =
   ## Set token with multiple characters
-  skip lex
   lex.startPos = lex.getColNumber(lex.bufpos)
   var i = 0
   if multichars != 0:
@@ -140,7 +139,7 @@ proc handleSpecial(lex: var Lexer) =
 
 proc next(lex: var Lexer, ch: char, offset = 1): bool =
   ## Check next char without modifying bufpos
-  skip lex
+  # skip lex # loose wsno info
   try: result = lex.buf[lex.bufpos + offset] in {ch}
   except IndexDefect: discard
 
