@@ -9,11 +9,13 @@ import std/lexbase except NewLines
 import std/[macros, os, strutils, sequtils,
           tables, unicode, algorithm, streams]
 
-export lexbase, streams
+export lexbase except NewLines
+export streams, strutils
 
 const
   toktokStatic {.strdefine.} = ""
   getLexerStaticPath = getProjectPath() / normalizedPath(toktokStatic)
+  # toktokUtils = staticRead("./lexutils.nim.stub")
 
 type
   TKType = enum
@@ -46,6 +48,7 @@ type
 
   TokenModifierCallback* = proc(tkName, tkPrefix: string): string
   Settings* = object
+    lexerName*, lexerTuple*, lexerTokenKind*: string
     tkModifier*: TokenModifierCallback
     tkPrefix*: string 
     keepUnknown*: bool
@@ -82,7 +85,6 @@ var
   tkIdentDefault {.compileTime.} = "identifier"
   tkEOFStr {.compileTime.} = "eof"
   defaultPrefix {.compileTime.} = "tk_"
-  tKindEnumName {.compileTime.} = ident("TokenKind")
   customHandlers {.compileTime.} = newStmtList()
 
 when not defined release:
@@ -265,7 +267,7 @@ template handleVarBranch(branch: var NimNode) =
 macro handlers*(custom: untyped) =
   ## Define your own handlers. For example:
   ##```nim
-  ##  proc handleClass(lex: var Lexer, kind: TokenKind) =
+  ##  proc handleClass(lex: var Lexer, kind: `TokenKind`) =
   ##    # your code
   ##```
   expectKind(custom, nnkStmtList)
@@ -274,6 +276,9 @@ macro handlers*(custom: untyped) =
 const defaultSettings* =
   Settings(
     tkPrefix: "tk",
+    lexerName: "Lexer",
+    lexerTuple: "TokenTuple",
+    lexerTokenKind: "TokenKind",
     tkModifier: defaultTokenModifier,      
     enableCustomIdent: false,
     enableStaticGen: toktokStatic.len > 0,
@@ -288,7 +293,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     tkEnum = newNimNode(nnkEnumTy)
     mainBranches, identBranches: seq[tuple[cond, body: NimNode]]
     getDefaultTokenCondBody = nnkIfStmt.newTree()
-  let tokenKindEnumName = tKindEnumName.strVal
+  let tokenKindEnumName = tok.settings.lexerTokenKind
   for tk in tokens:
     case tk.kind
     of nnkAsgn:
@@ -305,7 +310,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     of nnkAccQuoted:
       tok.tokens[tk[0].strVal] = TKNode(tkType: tDeferred, ident: tk[0])
     else: discard
-  # define default fields for TokenKind enum
+  # define default fields for `TokenKind` enum
   for default in [(tkUnknown, "unknown"), (tkInt, "integer"), (tkFloat, "float"),
                 (tkStr, "string"), (tkIdentDefault, "identifier"), (tkEOFStr, "EOF")]:
     tkEnum.addField(tok.getIdent(newLit default[0]))
@@ -326,7 +331,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     )
   tok.tokens.sort(system.cmp) # sort enum by name A-Z
   for name, tkNode in tok.tokens:
-    # Generate a `TokenKind` enumeration we store all tokens.
+    # Generate a ``TokenKind`` enumeration we store all tokens.
     #
     # Optionally, you can switch to hash tables,
     # which allows you to create tokenizers at runtime
@@ -426,7 +431,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       nnkPragmaExpr.newTree(
         nnkPostFix.newTree(
           ident("*"),
-          tKindEnumName
+          ident(tok.settings.lexerTokenKind)
         ),
         newTree(nnkPragma).add(ident("pure")) # not sure if is necessary
       ),
@@ -435,9 +440,9 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     )
   add typeSection,
     newTupleType(
-      "TokenTuple", public = true,
+      tok.settings.lexerTuple, public = true,
       fields = [
-        ("kind", ident(tokenKindEnumName)),
+        ("kind", ident(tok.settings.lexerTokenKind)),
         ("value", ident("string")),
         ("wsno|line|col|pos", ident("int")),
         ("attr", nnkBracketExpr.newTree(ident("seq"), ident("string")))
@@ -446,9 +451,9 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
 
   # Create `Lexer` object from `BaseLexer` with fields
   add typeSection,
-    newObject(id = "Lexer", parent = "BaseLexer", public = true,
+    newObject(id = tok.settings.lexerName, parent = "BaseLexer", public = true,
       fields = [
-        ("kind", ident(tokenKindEnumName)),
+        ("kind", ident(tok.settings.lexerTokenKind)),
         ("token", ident("string")),
         ("attr", nnkBracketExpr.newTree(ident("seq"), ident("string"))),
         ("error", ident("string")),
@@ -458,7 +463,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       ]
     )
   # Create `LexerException`
-  typeSection.add(newObject("LexerException", parent = "CatchableError", public = true))
+  typeSection.add(newObject(tok.settings.lexerName & "Exception", parent = "CatchableError", public = true))
   let caseOfChar = nnkBracketExpr.newTree(newDotExpr(ident("lex"), ident("buf")), newDotExpr(ident("lex"), ident("bufpos")))
   # Handle {'a'..'z', 'A'..'Z', '_'}
   mainBranches.add((
@@ -522,7 +527,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       newStmtList(
         newCall(
           newDotExpr(ident("lex"), ident("setToken")),
-          newDotExpr(ident(tokenKindEnumName), getIdent(tok, newLit(tkUnknown)))
+          newDotExpr(ident(tok.settings.lexerTokenKind), getIdent(tok, newLit(tkUnknown)))
         )
       )
 
@@ -533,15 +538,249 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     params = [("s", "string", false)],
     public = false,
     body = getDefaultTokenCondBody,
-    returnType = ident(tokenKindEnumName)
+    returnType = ident(tok.settings.lexerTokenKind)
   )
+
+  let LexerName = ident(tok.settings.lexerName)
+  let TokenKind = ident(tok.settings.lexerTokenKind)
+  result.add quote do:
+    const azAZ = Letters + {'_', '-'}
+    proc newLexer*(fileContent: string, allowMultilineStrings = false): `LexerName` =
+      ## Initialize a new BaseLexer instance with given Stream
+      var lex = `LexerName`()
+      open(lex, newStringStream(fileContent))
+      lex.startPos = 0
+      lex.kind = getDefaultToken("unknown")
+      lex.token = ""
+      lex.error = ""
+      lex.multiLineStr = allowMultilineStrings
+      result = lex
+
+    proc lexReady*(lex: var `LexerName`) =
+      lex.startPos = lex.getColNumber(lex.bufpos)
+      setLen(lex.token, 0); setLen(lex.attr, 0)
+
+    proc inc*(lex: var `LexerName`, offset = 1) = inc lex.bufpos, offset
+    proc current*(lex: var `LexerName`): char = result = lex.buf[lex.bufpos]
+    
+    proc add*(lex: var `LexerName`) =
+      add lex.token, lex.buf[lex.bufpos]
+      inc lex
+    
+    proc setError*(lex: var `LexerName`; message: string) =
+      lex.kind = getDefaultToken("unknown")
+      if lex.error.len == 0:
+        lex.error = message
+    
+    proc hasError*(lex: `LexerName`): bool = lex.error.len != 0
+    proc getError*(lex: `LexerName`): string = "($1:$2) $3" % [$lex.lineNumber, $(lex.startPos), lex.error]
   
-  # Include ./lexutils
-  result.add newInclude("./lexutils")
-  
+    proc handleNewLine(lex: var `LexerName`) =
+      ## Handle new lines
+      case lex.buf[lex.bufpos]
+      of '\c': lex.bufpos = lex.handleCR(lex.bufpos)
+      of '\n': lex.bufpos = lex.handleLF(lex.bufpos)
+      else: discard
+
+    proc inBuffer(lex: var `LexerName`, pos: int, chars: set[char]): bool =
+      try:
+        result = lex.buf[pos] in chars
+      except IndexDefect:
+        result = false
+
+    proc hasLetters*(lex: var `LexerName`, pos: int): bool =
+      lex.inBuffer(pos, azAZ)
+
+    proc hasNumbers*(lex: var `LexerName`, pos: int): bool =
+      lex.inBuffer(pos, Digits)
+
+    proc skip*(lex: var `LexerName`) =
+      var wsno: int
+      while true:
+        case lex.buf[lex.bufpos]
+        of Whitespace:
+          if lex.buf[lex.bufpos] in NewLines:
+            lex.handleNewLine()
+          else:
+            inc lex.bufpos
+            inc wsno
+        else:
+          lex.wsno = wsno
+          return
+
+    proc setToken(lex: var `LexerName`, tokenKind: `TokenKind`, offset = 1, initPos = - 1) =
+      ## Set meta data for current token
+      lex.kind = tokenKind
+      lex.startPos =
+        if initPos == -1:
+          lex.getColNumber(lex.bufpos)
+        else:
+          initPos
+          # lex.getColNumber(lex.bufpos) - lex.token.len # dirty fix
+      inc(lex.bufpos, offset)
+
+    proc setTokenGroup(lex: var `LexerName`, tokenKind: `TokenKind`, offset = 0, multichars = 0) =
+      ## Set token with multiple characters
+      lex.startPos = lex.getColNumber(lex.bufpos)
+      var i = 0
+      if multichars != 0:
+        while i < multichars:
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+          inc i
+      else:
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos, offset
+      lex.kind = tokenKind
+
+    proc nextToEOL(lex: var `LexerName`, offset = 1): tuple[pos, initPos: int, token: string] =
+      ## Get entire buffer starting from given position to the end of line
+      let col = lex.getColNumber(lex.bufpos)  # TODO keep initial start position
+      inc lex.bufpos, offset
+      # let wsno = lex.wsno
+      skip lex
+      while true:
+        case lex.buf[lex.bufpos]:
+        of NewLines, EndOfFile:
+          break
+        else: 
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+      result = (pos: col, initPos: col, token: lex.token)
+
+    proc handleSpecial(lex: var `LexerName`) =
+      ## Procedure for for handling special escaping tokens
+      inc lex.bufpos
+      case lex.buf[lex.bufpos]
+      of 'n':
+        add lex.token, "\\n"
+        inc lex.bufpos
+      of '\\':
+        add lex.token, "\\\\"
+        inc lex.bufpos
+      of '"':
+        add lex.token, "\\\""
+        inc lex.bufpos
+      else:
+        lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
+
+    proc next(lex: var `LexerName`, ch: char, offset = 1): bool =
+      ## Check next char without modifying bufpos
+      # skip lex # loose wsno info
+      try: result = lex.buf[lex.bufpos + offset] in {ch}
+      except IndexDefect: discard
+
+    proc next(lex: var `LexerName`, chars: string): bool =
+      # Check next characters without modifying bufpos
+      var i = 1
+      var status = false
+      for c in chars:
+        status = lex.next(c, i)
+        if status == false:
+          return status
+        inc i
+      result = status
+
+    proc nextToSpec(lex: var `LexerName`, endChar: char, tokenKind: `TokenKind`, str = "") =
+      ## Handle string values wrapped in single or double quotes
+      lex.startPos = lex.getColNumber(lex.bufpos)
+      # lex.token = ""
+      inc lex.bufpos
+      while true:
+        if lex.buf[lex.bufpos] == '\\':
+          lex.handleSpecial()
+          if lex.hasError(): return
+        elif lex.buf[lex.bufpos] == endChar:
+          lex.kind = tokenKind
+          inc lex.bufpos
+          break
+        # elif lex.buf[lex.bufpos] in NewLines:
+          # lex.handleNewLine()
+          # lex.setError("EOL reached before end of input")
+          # return
+        elif lex.buf[lex.bufpos] == EndOfFile:
+          lex.setError("EOF reached before end of input")
+          return
+        else:
+          if str.len != 0:
+            if lex.buf[lex.bufpos] == str[0]:
+              inc lex.bufpos
+              continue
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+
+    proc nextToSpec(lex: var `LexerName`, endChar: string, tokenKind: `TokenKind`) =
+      lex.nextToSpec(endChar[^1], tokenKind, endChar)
+
+    proc handleNumber(lex: var `LexerName`) =
+      # Handle integers and float numbers
+      setLen(lex.token, 0)
+      lex.startPos = lex.getColNumber(lex.bufpos)
+      var toString, toFloat: bool
+      while true:
+        case lex.buf[lex.bufpos]
+        of '0'..'9':
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+        of 'a'..'z', 'A'..'Z', '_', '-':
+          toString = true
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+        of '.':
+          if toFloat: break
+          try:
+            if lex.buf[lex.bufpos + 1] in {'0'..'9'}:
+              toFloat = true
+            else:
+              lex.kind = getDefaultToken("integer")
+              break
+          except IndexDefect:
+            toString = true
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+        else:
+          if toFloat:
+            lex.kind = getDefaultToken("float")
+          elif toString:
+            lex.kind = getDefaultToken("string")
+          else:
+            lex.kind = getDefaultToken("integer")
+          break
+
+    proc handleString(lex: var `LexerName`) =
+      # Handle strings
+      lex.startPos = lex.getColNumber(lex.bufpos)
+      setLen(lex.token, 0)
+      let lineno = lex.lineNumber
+      inc lex.bufpos
+      while true:
+        case lex.buf[lex.bufpos]
+        of '\\':
+          lex.handleSpecial()
+          if lex.hasError(): return
+        of '"':
+          lex.kind = getDefaultToken("string")
+          inc lex.bufpos
+          break
+        of NewLines:
+          if lex.multiLineStr:
+            # add lex.token, "\n"
+            inc lex.bufpos
+          else:
+            lex.setError("EOL reached before end of string")
+            return
+        of EndOfFile:
+          lex.setError("EOF reached before end of string")
+          return
+        else:
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+      if lex.multiLineStr:
+        lex.lineNumber = lineno
+
   if customHandlers.len > 0:
     result.add customHandlers
-  
+
   # Create `handleIdentCase` compile-time procedure
   let caseOfIdent = newDotExpr(ident "lex", ident "token")
   let identElseBranch =
@@ -551,16 +790,33 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       newStmtList(tok.getIdent(newLit tkIdentDefault))
   result.add newProc(
     id = "handleIdentCase",
-    params = [("lex", "Lexer", true)],
+    params = [("lex", tok.settings.lexerName, true)],
     body = newAssignment(
       newDotExpr(ident("lex"), ident("kind")),
       newCaseStmt(caseOfIdent, identBranches, identElseBranch)
     )
   )
+  
+  result.add quote do:
+    proc handleIdent(lex: var `LexerName`) =
+      ## Handle string-based identifiers
+      lex.startPos = lex.getColNumber(lex.bufpos)
+      setLen(lex.token, 0)
+      while true:
+        if lex.hasLetters(lex.bufpos):
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+        elif lex.hasNumbers(lex.bufpos):
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+        else: break
+      # skip lex
+      lex.handleIdentCase() # generated with macros
+
   # Create `handleMainCase` compile-time procedure
   result.add newProc(
     id = "handleMainCase",
-    params = [("lex", "Lexer", true)],
+    params = [("lex", tok.settings.lexerName, true)],
     body = newCaseStmt(caseOfChar, mainBranches, caseOfElse)
   )
   # Create `getToken` runtime procedure
@@ -619,9 +875,9 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
   result.add(newProc(
     id = "getToken",
     public = true,
-    returnType = ident("TokenTuple"),
+    returnType = ident(tok.settings.lexerTuple),
     params = [
-      ("lex", "Lexer", true)
+      ("lex", tok.settings.lexerName, true)
     ],
     getTokenStmt
   ))

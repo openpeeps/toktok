@@ -117,8 +117,9 @@ proc newProc*(id: string, params: openarray[tuple[k,t: string, vt: bool]],
   else:
     for param in params:
       let valType =
-        if param.vt: nnkVarTy.newTree(ident param.t)
-             else: ident param.t
+        if param.vt:
+          nnkVarTy.newTree(ident(param.t))
+        else: ident(param.t)
       formalParamsNode.add(
         nnkIdentDefs.newTree(
           ident param.k,
