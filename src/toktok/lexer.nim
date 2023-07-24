@@ -54,8 +54,10 @@ type
     keepUnknown*: bool
       ## Whether to keep unknown tokens (default false).
       ## This is useful when building a Markdown parser (for example)
-    enableCustomIdent*: bool
-      ## If enabled you can bring your own string-based handler
+    useDefaultIdent*: bool
+      ## Disable default string-based handler
+    useDefaultInt*: bool
+      ## Disable default `int` handler 
     enableStaticGen: bool
       ## Generate a static `lexer.nim` file (default false)
       ## Use `-d:toktokStatic` to (re)generate lexer file.
@@ -280,7 +282,7 @@ const defaultSettings* =
     lexerTuple: "TokenTuple",
     lexerTokenKind: "TokenKind",
     tkModifier: defaultTokenModifier,      
-    enableCustomIdent: false,
+    useDefaultIdent: true,
     enableStaticGen: toktokStatic.len > 0,
     keepUnknown: true,
     keepChar: false,
@@ -420,8 +422,13 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
           body: newCall(tkNode.handlerName, ident("lex"), tkIdent)
         ))
       else:
-        # a string based custom handler
-        discard
+        identBranches.add((
+          cond: newLit(tkNode.handlerToken.strVal),
+          body: newStmtList(
+            newCall(tkNode.handlerName, ident("lex"), tkIdent),
+            newDotExpr(ident("lex"), ident("kind"))
+          )
+        ))
     of tDeferred:
       tkEnum.addField(tkIdent)
 
@@ -784,10 +791,10 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
   # Create `handleIdentCase` compile-time procedure
   let caseOfIdent = newDotExpr(ident "lex", ident "token")
   let identElseBranch =
-    if tok.settings.enableCustomIdent:
-      newStmtList(newCall(newDotExpr(ident("lex"), ident("handleCustomIdent"))))
-    else:
+    if tok.settings.useDefaultIdent:
       newStmtList(tok.getIdent(newLit tkIdentDefault))
+    else:
+      newStmtList(newCall(newDotExpr(ident("lex"), ident("handleCustomIdent"))))
   result.add newProc(
     id = "handleIdentCase",
     params = [("lex", tok.settings.lexerName, true)],
@@ -796,7 +803,6 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       newCaseStmt(caseOfIdent, identBranches, identElseBranch)
     )
   )
-  
   result.add quote do:
     proc handleIdent(lex: var `LexerName`) =
       ## Handle string-based identifiers
