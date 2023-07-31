@@ -806,8 +806,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
   result.add quote do:
     proc handleIdent(lex: var `LexerName`) =
       ## Handle string-based identifiers
-      lex.startPos = lex.getColNumber(lex.bufpos)
-      setLen(lex.token, 0)
+      lexReady lex
       while true:
         if lex.hasLetters(lex.bufpos):
           add lex.token, lex.buf[lex.bufpos]
