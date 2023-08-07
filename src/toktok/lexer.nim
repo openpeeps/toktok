@@ -148,6 +148,9 @@ proc newTKNode(tok: var Tokenizer, tkIdent: NimNode, tkValue: NimNode): TKNode {
     if tkValue[0].eqIdent(".."):
       let x =
         if tkValue[1].kind in {nnkCharLit, nnkStrLit, nnkIntLit}:
+          if tkValue[1].kind == nnkCharLit:
+            if char(tkValue[1].intVal) in {'0'..'9'}:
+              tok.settings.useDefaultInt = false
           tkValue[1]
         else:
           error("Invalid token range for X. Expect nnkCharLit or nnkStrLit", tkValue[1])
@@ -410,7 +413,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       if tkNode.rangeToken.x.kind == nnkCharLit:
         var cond = newNimNode(nnkIfStmt)
         mainBranches.add((
-          cond: newLit(char(tkNode.rangeToken.x.intVal)),
+          cond: tkNode.rangeToken.x,
           body: tok.handleXtoEOL(tkNode.ident, tkNode.rangeToken.x, 0, false)
         ))
     of tHandler:
@@ -418,12 +421,17 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       if tkNode.handlerToken.kind == nnkCharLit:
         # add custom handler to the main case statement
         mainBranches.add((
-          cond: newLit(char(tkNode.handlerToken.intVal)),
+          cond: tkNode.handlerToken,
           body: newCall(tkNode.handlerName, ident("lex"), tkIdent)
         ))
+      elif tkNode.handlerToken.kind == nnkInfix:
+        mainBranches.add((
+          cond: tkNode.handlerToken,
+          body: newCall(tkNode.handlerName, ident("lex"), tkIdent)
+        )) 
       else:
         identBranches.add((
-          cond: newLit(tkNode.handlerToken.strVal),
+          cond: tkNode.handlerToken,
           body: newStmtList(
             newCall(tkNode.handlerName, ident("lex"), tkIdent),
             newDotExpr(ident("lex"), ident("kind"))
@@ -482,10 +490,11 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     body: newStmtList(newCall(ident("handleIdent"), ident("lex")))
   ))
   # Handle {'0'..'9'}
-  mainBranches.add((
-    cond: nnkCurly.newTree(newTree(nnkInfix, ident(".."), newLit('0'), newLit('9'))),
-    body: newStmtList(newCall(ident("handleNumber"), ident("lex")))
-  ))
+  if tok.settings.useDefaultInt:
+    mainBranches.add((
+      cond: nnkCurly.newTree(newTree(nnkInfix, ident(".."), newLit('0'), newLit('9'))),
+      body: newStmtList(newCall(ident("handleNumber"), ident("lex")))
+    ))
   # Handle "double quote strings"
   mainBranches.add((
     cond: newLit('\"'),
