@@ -8,33 +8,26 @@
 import unittest
 import toktok
 
-static:
-    Program.settings(
-        uppercase = true,
-        prefix = "Tk_"
-    )
-
 const sample = """
 const hello = 1 + 1
 """
-tokens:
-    Plus       > '+'
-    Minus      > '-'
-    Multi      > '*'
-    Div        > '/'
-    Assign     > '='
-    Comment    > '#' .. EOL
-    Var        > "var"
-    Let        > "let"
-    Const      > "const"
-    Bool_True  > @["TRUE", "True", "true", "YES", "Yes", "yes", "y"]
-    Bool_False > @["FALSE", "False", "false", "NO", "No", "no", "n"]
+registerTokens defaultSettings:
+    plus     = '+'
+    minus    = '-'
+    multi    = '*'
+    `div`    = '/'
+    assign   = '='
+    comment  = '#' .. EOL
+    `var`    = "var"
+    `let`    = "let"
+    `const`  = "const"
+    `bool`   = ["true", "false"]
 
 test "correct welcome":
-    var lex = Lexer.init(sample)
-    check lex.getToken().kind == TK_CONST
-    check lex.getToken().kind == TK_IDENTIFIER
-    check lex.getToken().kind == TK_ASSIGN
-    check lex.getToken().kind == TK_INTEGER
-    check lex.getToken().kind == TK_PLUS
-    check lex.getToken().kind == TK_INTEGER
+    var lex = newLexer(sample)
+    check lex.getToken().kind == tkConst
+    check lex.getToken().kind == tkIdentifier
+    check lex.getToken().kind == tkAssign
+    check lex.getToken().kind == tkInteger
+    check lex.getToken().kind == tkPlus
+    check lex.getToken().kind == tkInteger
