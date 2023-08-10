@@ -56,7 +56,7 @@ type
       ## This is useful when building a Markdown parser (for example)
     useDefaultIdent*: bool
       ## Disable default string-based handler
-    useDefaultInt*: bool
+    useDefaultInt*: bool = true
       ## Disable default `int` handler 
     enableStaticGen: bool
       ## Generate a static `lexer.nim` file (default false)
@@ -207,14 +207,13 @@ proc handleNextToken(tok: var Tokenizer, tkIdent, tkLit: NimNode, tkLitLen: int)
 proc handleXtoEOL(tok: var Tokenizer, tkIdent, tkLit: NimNode, offset: int, wrapCond = true): NimNode {.compileTime.} =
   let x =
     newStmtList(
-      newLetStmt(
-        ident("toEOL"),
-        newCall(ident("nextToEOL"), ident("lex"), newLit(offset + 1))
-      ),
+      # newLetStmt(
+        # ident("toEOL"),
       newCall(
-        ident("setToken"), ident("lex"), tok.getIdent(tkIdent),
-        newDotExpr(ident("toEol"), ident("pos")),
-        newDotExpr(ident("toEol"), ident("initPos"))
+        ident("nextToEOL"),
+        ident("lex"),
+        newLit(offset),
+        tok.getIdent(tkIdent)
       )
     )
   if wrapCond:
@@ -241,7 +240,7 @@ template handleVarBranch(branch: var NimNode) =
       if vOther.rangeToken.x.kind == nnkCharLit:
         if vOther.rangeToken.y.kind == nnkEmpty:
           # Handle Ranges, from X char to end of line (X .. EOL)
-          branch.add(tok.handleXtoEOL(vOther.ident, vOther.rangeToken.x, 1))  
+          branch.add(tok.handleXtoEOL(vOther.ident, vOther.rangeToken.x, 2))  
       elif vOther.rangeToken.x.kind == nnkStrLit:
         if vOther.rangeToken.y.kind == nnkEmpty:
           # Handle Ranges, from X string to end of line (X .. EOL)
@@ -632,7 +631,6 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
           lex.getColNumber(lex.bufpos)
         else:
           initPos
-          # lex.getColNumber(lex.bufpos) - lex.token.len # dirty fix
       inc(lex.bufpos, offset)
 
     proc setTokenGroup(lex: var `LexerName`, tokenKind: `TokenKind`, offset = 0, multichars = 0) =
@@ -649,20 +647,20 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         inc lex.bufpos, offset
       lex.kind = tokenKind
 
-    proc nextToEOL(lex: var `LexerName`, offset = 1): tuple[pos, initPos: int, token: string] =
-      ## Get entire buffer starting from given position to the end of line
-      let col = lex.getColNumber(lex.bufpos)  # TODO keep initial start position
+    proc nextToEOL(lex: var `LexerName`, offset = 1, tokenKind: `TokenKind`) =
+      # Collect from pos ition X to EOL.
+      # Mainly used to tokenize single line comments
+      lexReady lex
       inc lex.bufpos, offset
-      # let wsno = lex.wsno
-      skip lex
       while true:
         case lex.buf[lex.bufpos]:
         of NewLines, EndOfFile:
+          lex.handleNewLine()
           break
         else: 
-          add lex.token, lex.buf[lex.bufpos]
-          inc lex.bufpos
-      result = (pos: col, initPos: col, token: lex.token)
+          add lex
+      lex.kind = tokenKind
+      lex.token = strutils.strip(lex.token)
 
     proc handleSpecial(lex: var `LexerName`) =
       ## Procedure for for handling special escaping tokens
