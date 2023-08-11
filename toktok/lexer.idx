@@ -1,17 +1,24 @@
-openArrayParams	toktok/lexer.html#openArrayParams	lexer: openArrayParams	
-newImport	toktok/lexer.html#newImport,string	lexer: newImport(id: string): NimNode	
-newInclude	toktok/lexer.html#newInclude,string	lexer: newInclude(id: string): NimNode	
-newExclude	toktok/lexer.html#newExclude,string	lexer: newExclude(id: string): NimNode	
-newWhenStmt	toktok/lexer.html#newWhenStmt,tuple[NimNode,NimNode]	lexer: newWhenStmt(whenBranch: tuple[cond, body: NimNode]): NimNode	
-newWhenStmt	toktok/lexer.html#newWhenStmt,tuple[NimNode,NimNode],NimNode	lexer: newWhenStmt(whenBranch: tuple[cond, body: NimNode]; elseBranch: NimNode): NimNode	
-newCaseStmt	toktok/lexer.html#newCaseStmt,NimNode,openArray[tuple[NimNode,NimNode]]	lexer: newCaseStmt(caseNode: NimNode; branches: openArray[tuple[cond, body: NimNode]];\n            elseBranch = newEmptyNode()): NimNode	
-newExceptionStmt	toktok/lexer.html#newExceptionStmt,NimNode,NimNode	lexer: newExceptionStmt(exception: NimNode; msg: NimNode): NimNode	
-newObject	toktok/lexer.html#newObject,string,openArrayParams,string	lexer: newObject(id: string; fields: openArrayParams = []; parent = &quot;&quot;; public = false): NimNode	
-newTupleType	toktok/lexer.html#newTupleType,string,openArrayParams	lexer: newTupleType(id: string; fields: openArrayParams; public = false): NimNode	
-newProc	toktok/lexer.html#newProc,string,openArray[tuple[string,string,bool]]	lexer: newProc(id: string; params: openArray[tuple[k, t: string, vt: bool]];\n        public = false; returnType, body = newEmptyNode()): NimNode	
-newTemplate	toktok/lexer.html#newTemplate,string,openArray[tuple[string,string,bool]]	lexer: newTemplate(id: string; params: openArray[tuple[k, t: string, vt: bool]];\n            public = false; body = newEmptyNode()): NimNode	
-TK	toktok/lexer.html#TK	lexer: TK	
-Program	toktok/lexer.html#Program	lexer: Program	
-settings	toktok/lexer.html#settings,CurrentProgram,bool	lexer: settings(program: var CurrentProgram; uppercase: bool; prefix = tkPrefix;\n         allowUnknown, keepUnknownChars, handleCustomIdent = false)	
-handlers	toktok/lexer.html#handlers.m	lexer: handlers(customHandlers)	
-tokens	toktok/lexer.html#tokens.m,untyped	lexer: tokens(tks: untyped)	
+nimTitle	lexer	toktok/lexer.html	module src/toktok/lexer		0
+nim	TKNode	toktok/lexer.html#TKNode	type TKNode		30
+nim	TokenModifierCallback	toktok/lexer.html#TokenModifierCallback	type TokenModifierCallback		49
+nim	Settings	toktok/lexer.html#Settings	object Settings		50
+nim	defaultTokenModifier	toktok/lexer.html#defaultTokenModifier	let defaultTokenModifier		79
+nim	openArrayParams	toktok/lexer.html#openArrayParams	type openArrayParams		1
+nim	newImport	toktok/lexer.html#newImport,string	proc newImport(id: string): NimNode		3
+nim	newInclude	toktok/lexer.html#newInclude,string	proc newInclude(id: string): NimNode		7
+nim	newExclude	toktok/lexer.html#newExclude,string	proc newExclude(id: string): NimNode		11
+nim	newWhenStmt	toktok/lexer.html#newWhenStmt,tuple[NimNode,NimNode]	proc newWhenStmt(whenBranch: tuple[cond, body: NimNode]): NimNode		15
+nim	newWhenStmt	toktok/lexer.html#newWhenStmt,tuple[NimNode,NimNode],NimNode	proc newWhenStmt(whenBranch: tuple[cond, body: NimNode]; elseBranch: NimNode): NimNode		20
+nim	newCaseStmt	toktok/lexer.html#newCaseStmt,NimNode,openArray[tuple[NimNode,NimNode]]	proc newCaseStmt(caseNode: NimNode; branches: openArray[tuple[cond, body: NimNode]];\n            elseBranch = newEmptyNode()): NimNode		26
+nim	newExceptionStmt	toktok/lexer.html#newExceptionStmt,NimNode,NimNode	proc newExceptionStmt(exception: NimNode; msg: NimNode): NimNode		35
+nim	newObject	toktok/lexer.html#newObject,string,openArrayParams,string	proc newObject(id: string; fields: openArrayParams = []; parent = ""; public = false): NimNode		47
+nim	newTupleType	toktok/lexer.html#newTupleType,string,openArrayParams	proc newTupleType(id: string; fields: openArrayParams; public = false): NimNode		72
+nim	newProc	toktok/lexer.html#newProc,string,openArray[tuple[string,string,bool]]	proc newProc(id: string; params: openArray[tuple[k, t: string, vt: bool]];\n        public = false; returnType, body = newEmptyNode()): NimNode		105
+nim	newTemplate	toktok/lexer.html#newTemplate,string,openArray[tuple[string,string,bool]]	proc newTemplate(id: string; params: openArray[tuple[k, t: string, vt: bool]];\n            public = false; body = newEmptyNode()): NimNode		140
+nim	addField	toktok/lexer.html#addField,NimNode,NimNode	proc addField(tkEnum: var NimNode; enumType: NimNode)		178
+nim	addField	toktok/lexer.html#addField,NimNode,NimNode,NimNode	proc addField(tkEnum: var NimNode; enumIdent, enumType: NimNode)		181
+nim	handlers	toktok/lexer.html#handlers.m,untyped	macro handlers(custom: untyped)		271
+nim	defaultSettings	toktok/lexer.html#defaultSettings	const defaultSettings		280
+nim	registerTokens	toktok/lexer.html#registerTokens.m,staticSettings,untyped	macro registerTokens(settings: static Settings; tokens: untyped)		293
+nimgrp	addfield	toktok/lexer.html#addField-procs-all	proc		178
+nimgrp	newwhenstmt	toktok/lexer.html#newWhenStmt-procs-all	proc		15
