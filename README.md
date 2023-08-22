@@ -16,12 +16,15 @@
 ## 😍 Key Features
 - ✨ Powered by Nim's Macros
 - 🪄 Based on `std/lexbase` / Zero Regular Expression
-- Static generation using **TokenKind** `enum`, `lexbase`
-- Dynamic generation using **TokenKind** `tables`, `lexbase`
+- Compile-time generation using macro-based **TokenKind** `enum`, `lexbase`
+- Runtime generation using **TokenKind** `tables`, `lexbase`
 - Open Source | `MIT`
 
-> __Note__ Toktok is a generic Lexer, based on standard Nim libraries `streams`, `lexbase` and `macros`. It is meant to be used by higher level parsers for writing any kind of tools or programs.
-> __Note__ Compile with `-d:toktokdebug` to inspect the generated code.
+> [!NOTE]
+> This is a generic Lexer, based on std/ `streams`, `lexbase` and `macros`. It is meant to be used by higher level parsers for writing any kind of tools or programs.
+
+> [!NOTE]
+> Compile with `-d:toktokdebug` to inspect the generated code.
 
 ## Quick Example
 
