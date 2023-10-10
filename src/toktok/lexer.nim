@@ -467,13 +467,13 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
   add typeSection,
     newObject(id = tok.settings.lexerName, parent = "BaseLexer", public = true,
       fields = [
-        ("kind", ident(tok.settings.lexerTokenKind)),
-        ("token", ident("string")),
-        ("attr", nnkBracketExpr.newTree(ident("seq"), ident("string"))),
-        ("error", ident("string")),
-        ("startPos", ident("int")),
-        ("wsno", ident("int")),
-        ("multiLineStr", ident("bool"))
+        ("kind", ident(tok.settings.lexerTokenKind), false),
+        ("token", ident("string"), false),
+        ("attr", nnkBracketExpr.newTree(ident("seq"), ident("string")), false),
+        ("error", ident("string"), false),
+        ("startPos", ident("int"), false),
+        ("wsno", ident("int"), false),
+        ("multiLineStr", ident("bool"), false)
       ]
     )
   # Create `LexerException`
@@ -834,7 +834,8 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
   # Create `getToken` runtime procedure
   var tupleConstr = nnkTupleConstr.newTree()
   for tp in [("kind", "kind"), ("value", "token"), ("wsno", "wsno"),
-            ("line", "lineNumber"), ("col", "startPos"), ("pos", "startPos"), ("attr", "attr")]:
+            ("line", "lineNumber"), ("col", "startPos"),
+            ("pos", "startPos"), ("attr", "attr")]:
     var dotExpr = newDotExpr(ident("lex"), ident(tp[1]))
     if tp[0] == "col":
       dotExpr = nnkInfix.newTree(ident("+"), dotExpr, newLit(1)) # + 1 to col field to reflect IDE

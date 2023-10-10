@@ -1,4 +1,5 @@
-type openArrayParams* = openarray[tuple[k: string, t: NimNode]]
+type ObjectFields* = openarray[tuple[k: string, t: NimNode, public: bool]]
+type TupleFields* = openarray[tuple[k: string, t: NimNode]]
 
 proc newImport*(id: string): NimNode =
   result = newNimNode(nnkImportStmt)
@@ -23,8 +24,9 @@ proc newWhenStmt*(whenBranch: tuple[cond, body: NimNode], elseBranch: NimNode): 
   result.add(newTree(nnkElifBranch, whenBranch.cond, whenBranch.body))
   result.add(newTree(nnkElse, elseBranch))
 
-proc newCaseStmt*(caseNode: NimNode, branches: openarray[tuple[cond, body: NimNode]],
-         elseBranch = newEmptyNode()): NimNode =
+proc newCaseStmt*(caseNode: NimNode,
+      branches: openarray[tuple[cond, body: NimNode]],
+      elseBranch = newEmptyNode()): NimNode =
   result = newNimNode(nnkCaseStmt)
   result.add caseNode
   for branch in branches:
@@ -44,14 +46,23 @@ proc newExceptionStmt*(exception: NimNode, msg: NimNode): NimNode =
     )
   )
 
-proc newObject*(id: string, fields: openArrayParams = [], parent = "", public = false): NimNode =
+proc newObject*(id: string, fields: ObjectFields = [], parent = "", public = false): NimNode =
   ## Create a new object
   # result = newNimNode nnkTypeSection
   var fieldDefs = newEmptyNode()
   if fields.len != 0:
     fieldDefs = newNimNode nnkRecList
     for f in fields:
-      fieldDefs.add(nnkIdentDefs.newTree(ident f.k, f.t, newEmptyNode()))
+      if f.public:
+        fieldDefs.add(
+          newIdentDefs(
+            nnkPostfix.newTree(ident "*", ident f.k),
+            f.t,
+            newEmptyNode()
+          )
+        )
+      else:
+        fieldDefs.add(newIdentDefs(ident f.k, f.t, newEmptyNode()))
   let objectIdent =
     if public: nnkPostfix.newTree(ident "*", ident id)
        else: ident(id)
@@ -69,7 +80,7 @@ proc newObject*(id: string, fields: openArrayParams = [], parent = "", public = 
       )
     )
 
-proc newTupleType*(id: string, fields: openArrayParams, public = false): NimNode =
+proc newTupleType*(id: string, fields: TupleFields, public = false): NimNode =
   ## Creates a new tuple type
   # result = newNimNode nnkTypeSection
   let tupleIdent =
