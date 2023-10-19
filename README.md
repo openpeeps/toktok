@@ -29,6 +29,12 @@
 ## Quick Example
 
 ```nim
+# Register your custom handlers
+handlers:
+  proc handleImport(lex: var Lexer, kind: TokenKind) =
+    # tokenize `import x, y, z`
+    lex.kind = kind
+
 # Register your tokens
 registerTokens defaultSettings:
   `const` = "const"
