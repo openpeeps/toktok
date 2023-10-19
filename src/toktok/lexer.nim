@@ -15,7 +15,6 @@ export streams, strutils
 const
   toktokStatic {.strdefine.} = ""
   getLexerStaticPath = getProjectPath() / normalizedPath(toktokStatic)
-  # toktokUtils = staticRead("./lexutils.nim.stub")
 
 type
   TKType = enum
@@ -899,5 +898,11 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
     echo result.repr
   when defined toktokStatic:
     if toktokStatic.endsWith(".nim"):
-      # todo import necessary modules from std
-      writeFile(getLexerStaticPath, result.repr)
+      # todo find a better method
+      var output =  """
+import std/lexbase except NewLines
+import std/[strutils, streams]
+"""
+      add output, replace(result.repr, "`gensym0", "").replace("`gensym1", "")
+      writeFile(getLexerStaticPath, output)
+      result = newStmtList()
