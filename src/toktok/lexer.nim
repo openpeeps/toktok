@@ -777,7 +777,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
           break
         of NewLines:
           if lex.multiLineStr:
-            # add lex.token, "\n"
+            inc lex.lineNumber
             inc lex.bufpos
           else:
             lex.setError("EOL reached before end of string")
@@ -788,8 +788,8 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         else:
           add lex.token, lex.buf[lex.bufpos]
           inc lex.bufpos
-      if lex.multiLineStr:
-        lex.lineNumber = lineno
+      # if lex.multiLineStr:
+      #   lex.lineNumber = lineno
 
   if customHandlers.len > 0:
     result.add customHandlers
