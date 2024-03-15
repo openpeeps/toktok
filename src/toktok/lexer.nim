@@ -672,7 +672,7 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         add lex.token, "\\\\"
         inc lex.bufpos
       of '"':
-        add lex.token, "\\\""
+        add lex.token, "\""
         inc lex.bufpos
       else:
         lex.setError("Unknown escape sequence: '\\" & lex.buf[lex.bufpos] & "'")
@@ -765,16 +765,45 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       lex.startPos = lex.getColNumber(lex.bufpos)
       setLen(lex.token, 0)
       let lineno = lex.lineNumber
-      inc lex.bufpos
+      let bufpos = lex.bufpos
+      var blockString: bool
+      if lex.next("\"\""):
+        inc lex.bufpos, 3
+        blockString = true
+      else:
+        inc lex.bufpos
       while true:
         case lex.buf[lex.bufpos]
         of '\\':
           lex.handleSpecial()
           if lex.hasError(): return
         of '"':
-          lex.kind = getDefaultToken("string")
-          inc lex.bufpos
-          break
+          if lex.next("\"\"") and blockString:
+            lex.kind = getDefaultToken("string")
+            inc lex.bufpos, 3
+            break
+          elif blockString:
+            while true:
+              case lex.buf[lex.bufpos]
+              of '"':
+                if lex.next("\"\""):
+                  lex.kind = getDefaultToken("string")
+                  inc lex.bufpos, 3
+                  break
+                else:
+                  add lex.token, lex.buf[lex.bufpos]
+                  inc lex.bufpos
+              of NewLines:
+                  inc lex.lineNumber
+                  inc lex.bufpos
+              else:
+                add lex.token, lex.buf[lex.bufpos]
+                inc lex.bufpos
+            break
+          else:
+            lex.kind = getDefaultToken("string")
+            inc lex.bufpos
+            break
         of NewLines:
           if lex.multiLineStr:
             inc lex.lineNumber
@@ -788,8 +817,6 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         else:
           add lex.token, lex.buf[lex.bufpos]
           inc lex.bufpos
-      # if lex.multiLineStr:
-      #   lex.lineNumber = lineno
 
   if customHandlers.len > 0:
     result.add customHandlers
