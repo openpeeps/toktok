@@ -50,7 +50,7 @@ type
     lexerName*, lexerTuple*, lexerTokenKind*: string
     tkModifier*: TokenModifierCallback
     tkPrefix*: string 
-    keepUnknown*: bool
+    keepUnknown*, handleUnknown*: bool
       ## Whether to keep unknown tokens (default false).
       ## This is useful when building a Markdown parser (for example)
     useDefaultIdent*: bool
@@ -515,36 +515,36 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
       )
     )
   ))
-  let caseOfElse =
-    if tok.settings.keepUnknown:
-      newStmtList(
-        newAssignment(
-          newDotExpr(ident "lex", ident "token"),
-          nnkPrefix.newTree(
-            ident "$",
-            nnkPar.newTree(
-              nnkBracketExpr.newTree(
-                newDotExpr(ident "lex", ident "buf"),
-                newDotExpr(ident "lex", ident "bufpos")
+  var caseOfElse: NimNode
+  if tok.settings.keepUnknown:
+    caseOfElse =
+      if tok.settings.handleUnknown:
+        newStmtList(
+          newCall(ident"handleUnknown", ident"lex")
+        )
+      else:
+        newStmtList(
+          newAssignment(
+            newDotExpr(ident "lex", ident "token"),
+            nnkPrefix.newTree(
+              ident "$",
+              nnkPar.newTree(
+                nnkBracketExpr.newTree(
+                  newDotExpr(ident "lex", ident "buf"),
+                  newDotExpr(ident "lex", ident "bufpos")
+                )
               )
             )
           )
-        ),
-        newCall(
-          ident("setToken"),
-          ident("lex"),
-          getIdent(tok, newLit(tkUnknown)),
-          newLit(1)
-        ),
-      )
-    else:
+        )
+  else:
+    caseOfElse =
       newStmtList(
         newCall(
           newDotExpr(ident("lex"), ident("setToken")),
           newDotExpr(ident(tok.settings.lexerTokenKind), getIdent(tok, newLit(tkUnknown)))
         )
       )
-
   result = newStmtList()
   result.add typeSection
   result.add newProc(
@@ -694,8 +694,8 @@ macro registerTokens*(settings: static Settings, tokens: untyped) =
         inc i
       result = status
 
-    proc nextToSpec(lex: var `LexerName`, endChar: char, tokenKind: `TokenKind`, str = "") =
-      ## Handle string values wrapped in single or double quotes
+    proc nextToSpec(lex: var `LexerName`,
+        endChar: char, tokenKind: `TokenKind`, str = "") =
       lex.startPos = lex.getColNumber(lex.bufpos)
       # lex.token = ""
       inc lex.bufpos
