@@ -71,9 +71,7 @@ while likely(curr.kind != tkEOF):
 ### ❤ Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/toktok/issues)
 - 👋 Wanna help? [Fork it!](https://github.com/openpeeps/toktok/fork)
-- 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
-- 🥰 [Donate to OpenPeeps via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
 `MIT` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
-Copyright &copy; 2023 OpenPeeps & Contributors &mdash; All rights reserved.
+Copyright &copy; 2026 OpenPeeps & Contributors &mdash; All rights reserved.
